@@ -98,7 +98,7 @@ class ShellState extends State<Shell> {
       }
     }
 
-    if (event.logicalKey == LogicalKeyboardKey.question && isPlain(event)) {
+    if (event.character == '?' && isPlain(event)) {
       show(Mode.help);
       return KeyEventResult.handled;
     }
@@ -116,12 +116,16 @@ class ShellState extends State<Shell> {
       return KeyEventResult.handled;
     }
     if (!isPlain(event)) return KeyEventResult.ignored;
-    if (event.logicalKey == LogicalKeyboardKey.slash) {
+    if (event.character == '/') {
       filterFocus.requestFocus();
       return KeyEventResult.handled;
     }
-    if (event.character?.toLowerCase() == 'i') {
+    if (event.character == 'I') {
       ignoreSelectedRow();
+      return KeyEventResult.handled;
+    }
+    if (event.character?.toLowerCase() == 'i') {
+      ignoreQuick();
       return KeyEventResult.handled;
     }
     switch (event.character?.toLowerCase()) {
@@ -139,13 +143,22 @@ class ShellState extends State<Shell> {
     return KeyEventResult.handled;
   }
 
-  /// Ask how wide the rule is and where it goes, then write it.
+  /// One key: ignore the focused rows with their literal path in the root
+  /// .gitignore.
+  Future<void> ignoreQuick() async {
+    final problem = await changes.ignoreQuick();
+    if (problem != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(problem)));
+    }
+  }
+
+  /// Shift+I: ask how wide the rule is and where it goes, then write it.
   Future<void> ignoreSelectedRow() async {
     final row = changes.selected;
     if (row == null) return;
     final targets = await changes.ignoreTargets();
     if (!mounted || targets.isEmpty) return;
-    final choice = await IgnoreDialog.show(context, row: row, targets: targets);
+    final choice = await IgnoreDialog.show(context, changes: changes, row: row, targets: targets);
     if (choice == null || !mounted) return;
     final problem = await changes.ignoreSelected(
       scope: choice.scope,

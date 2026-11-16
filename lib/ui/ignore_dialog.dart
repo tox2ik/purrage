@@ -16,19 +16,21 @@ class IgnoreChoice {
 /// Ask how wide the rule is and which file it goes into, showing the exact line
 /// that will be written before it is written.
 class IgnoreDialog extends StatefulWidget {
-  const IgnoreDialog({super.key, required this.row, required this.targets});
+  const IgnoreDialog({super.key, required this.changes, required this.row, required this.targets});
 
+  final Changes changes;
   final StatusRow row;
   final List<IgnoreTarget> targets;
 
   static Future<IgnoreChoice?> show(
     BuildContext context, {
+    required Changes changes,
     required StatusRow row,
     required List<IgnoreTarget> targets,
   }) =>
       showDialog<IgnoreChoice>(
         context: context,
-        builder: (context) => IgnoreDialog(row: row, targets: targets),
+        builder: (context) => IgnoreDialog(changes: changes, row: row, targets: targets),
       );
 
   @override
@@ -47,9 +49,11 @@ class _IgnoreDialogState extends State<IgnoreDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final pattern = Changes.previewPattern(scope: scope, target: target, path: widget.row.path);
+    final lines = widget.changes.ignorePreviews(scope: scope, target: target);
+    final count = widget.changes.actionRows.length;
+    final blocked = lines.isNotEmpty && lines.every((line) => line.contains('no rule'));
     return AlertDialog(
-      title: Text('Ignore ${widget.row.path}'),
+      title: Text(count > 1 ? 'Ignore $count files' : 'Ignore ${widget.row.path}'),
       content: SizedBox(
         width: 520,
         child: Column(
@@ -64,14 +68,14 @@ class _IgnoreDialogState extends State<IgnoreDialog> {
             const SizedBox(height: 12),
             _tracking(),
             const SizedBox(height: 12),
-            _preview(pattern),
+            _preview(lines),
           ],
         ),
       ),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
         FilledButton(
-          onPressed: pattern == null
+          onPressed: blocked
               ? null
               : () => Navigator.pop(
                     context,
@@ -122,13 +126,28 @@ class _IgnoreDialogState extends State<IgnoreDialog> {
           subtitle: const Text('Ignoring does not untrack a file by itself.'),
         );
 
-  Widget _preview(String? pattern) => Container(
+  Widget _preview(List<String> lines) => Container(
         width: double.infinity,
         padding: const EdgeInsets.all(8),
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        child: Text(
-          pattern == null ? 'This scope makes no rule for this file.' : 'line to write:   $pattern',
-          style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              lines.length > 1 ? 'lines to write:' : 'line to write:',
+              style: Theme.of(context).textTheme.labelSmall,
+            ),
+            const SizedBox(height: 4),
+            for (final line in lines.take(8))
+              Text(
+                line,
+                style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+              ),
+            if (lines.length > 8)
+              Text('… ${lines.length - 8} more',
+                  style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+          ],
         ),
       );
 

@@ -29,6 +29,7 @@ class _GlusteredAppState extends State<GlusteredApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Glustered',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorSchemeSeed: const Color(0xFF4C6EF5),
         useMaterial3: true,

@@ -26,8 +26,17 @@ Flutter is discovered by the Makefile (`make where` prints the pair it picked): 
 
 ## Running tests
 
-- `dart_test.yaml` sets `concurrency: 1` and `timeout: 55s`. A test that needs longer sets its
-  own `timeout:`.
+- `dart_test.yaml` sets `concurrency: 2` and `timeout: 22s`; `make test` passes `--timeout 22s`
+  too (keep the two equal). **Every test runs with a 22 second timeout** — never wait on a test
+  that hangs, and a test that genuinely needs longer sets its own `timeout:` explicitly.
+- The timeout cannot save a `testWidgets` that waits on real I/O. Widget tests run on a fake clock,
+  and a body parked in `tester.runAsync` (or on a real `Future.delayed`) leaves the runner's own
+  timer advancing nowhere: the test hangs past the timeout and has to be killed. So:
+  - never drive git, sockets or file watchers from a widget test;
+  - parser and state tests are plain `test()`s, repo tests use a throwaway repo in a plain
+    `test()` (`makeRepo()`), and a widget test gets a state object already built from fixtures.
+- If a test does hang, kill it: `Get-Process flutter_tester,dart | Stop-Process -Force`; `Ctrl+C`
+  in the running terminal is not enough once the fake clock owns the timers.
 - Run only the files that cover the change while iterating, the whole suite before a commit.
 - Widget tests run on a fake clock: `pump(duration)`, no `pumpAndSettle` with a real timer.
 - A test cleans up after itself: temp repos go through the `makeRepo()` helper in

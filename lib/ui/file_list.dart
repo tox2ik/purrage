@@ -1,4 +1,6 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../state/changes.dart';
 import '../state/status.dart';
@@ -90,11 +92,12 @@ class _FileListState extends State<FileList> {
           key: keys[index],
           row: row,
           focused: index == changes.index,
-          onTap: () => changes.select(index),
+          chosen: changes.isSelected(row),
+          onTap: (ctrl, shift) => changes.click(index, ctrl: ctrl, shift: shift),
           onTrack: () => changes.trackSelected(),
           onUntrack: () => changes.untrackSelected(),
           onIgnore: () {
-            changes.select(index);
+            if (!changes.isSelected(row)) changes.click(index);
             widget.onIgnore();
           },
         ));
@@ -104,19 +107,40 @@ class _FileListState extends State<FileList> {
       children: [
         filter,
         Expanded(
-          child: ListView(controller: scroll, children: children),
+          child: Listener(
+            onPointerSignal: _wheel,
+            child: ListView(controller: scroll, children: children),
+          ),
         ),
       ],
     );
   }
+
+  /// Shift + wheel steps the cursor five rows at a time instead of scrolling,
+  /// the way Ops' wheel mode steps through items. Claiming the signal keeps the
+  /// list from scrolling underneath.
+  void _wheel(PointerSignalEvent event) {
+    if (event is! PointerScrollEvent) return;
+    if (!HardwareKeyboard.instance.isShiftPressed) return;
+    final dy = event.scrollDelta.dy != 0 ? event.scrollDelta.dy : event.scrollDelta.dx;
+    if (dy == 0) return;
+    GestureBinding.instance.pointerSignalResolver.register(event, (_) {
+      widget.changes.move(dy > 0 ? 5 : -5);
+    });
+  }
 }
 
-/// One file row: status letter, name, folder, and the actions at the end.
+/// One file row: status letter, folder, name, and the actions at the end.
+///
+/// `chosen` is the selection (Ctrl/Shift clicks build it); `focused` is the
+/// cursor. They draw differently so a multi-selection still shows where the
+/// cursor is.
 class RowTile extends StatelessWidget {
   const RowTile({
     super.key,
     required this.row,
     required this.focused,
+    required this.chosen,
     required this.onTap,
     required this.onTrack,
     required this.onUntrack,
@@ -125,7 +149,8 @@ class RowTile extends StatelessWidget {
 
   final StatusRow row;
   final bool focused;
-  final VoidCallback onTap;
+  final bool chosen;
+  final void Function(bool ctrl, bool shift) onTap;
   final VoidCallback onTrack;
   final VoidCallback onUntrack;
   final VoidCallback onIgnore;
@@ -134,21 +159,34 @@ class RowTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final style = Theme.of(context).textTheme.bodyMedium;
+    final keyboard = HardwareKeyboard.instance;
     return Tooltip(
       message: _tooltip,
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         child: InkWell(
-          onTap: onTap,
+          onTap: () => onTap(keyboard.isControlPressed, keyboard.isShiftPressed),
           onSecondaryTap: onIgnore,
           child: Container(
-            color: focused ? scheme.secondaryContainer : null,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: chosen
+                  ? scheme.primaryContainer.withValues(alpha: 0.55)
+                  : focused
+                      ? scheme.secondaryContainer.withValues(alpha: 0.35)
+                      : null,
+              border: Border(
+                left: BorderSide(
+                  width: 3,
+                  color: focused ? scheme.primary : Colors.transparent,
+                ),
+              ),
+            ),
+            padding: const EdgeInsets.fromLTRB(9, 6, 12, 6),
             child: Row(
               children: [
-                _Badge(text: _badge, color: scheme.outline),
+                _Badge(text: _badge, color: chosen ? scheme.primary : scheme.outline),
                 const SizedBox(width: 8),
-                Expanded(child: _name(style, scheme)),
+                Expanded(child: _name(style, scheme, chosen)),
                 if (row.isStaged)
                   _Action(icon: Icons.remove_circle_outline, tooltip: 'Untrack', onTap: onUntrack)
                 else if (!row.isConflict)
@@ -164,7 +202,7 @@ class RowTile extends StatelessWidget {
 
   /// Folder first, then the name, each in a fixed share of the row, so the file
   /// names line up under each other whatever the folder depths are.
-  Widget _name(TextStyle? style, ColorScheme scheme) => Row(
+  Widget _name(TextStyle? style, ColorScheme scheme, bool chosen) => Row(
         children: [
           Expanded(
             flex: 2,
@@ -182,7 +220,7 @@ class RowTile extends StatelessWidget {
               row.name,
               overflow: TextOverflow.ellipsis,
               maxLines: 1,
-              style: style,
+              style: chosen ? style?.copyWith(fontWeight: FontWeight.w600) : style,
             ),
           ),
         ],

@@ -130,6 +130,8 @@ The ignore pane becomes a list of `.gitignore` files, not one file:
   right click opens the same menu as `i`.
 - A path longer than the window is cut with an ellipsis; the row tooltip still holds the whole
   path.
+- Shift + the wheel steps the cursor five rows at a time and keeps the list from scrolling; the
+  plain wheel scrolls.
 - A row reads folder first, then name, in two fixed shares of the row, so names line up under each
   other whatever the folder depths are.
 - Row-end buttons appear on hover: track, ignore, open. File rows use the pointer cursor; there

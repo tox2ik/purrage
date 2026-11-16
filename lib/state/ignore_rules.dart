@@ -74,7 +74,7 @@ class IgnoreRules {
     required String globalIgnore,
     required String path,
   }) {
-    final repo = _noTrailingSlash(repoPath);
+    final repo = _noTrailingSlash(repoPath.replaceAll(r'\', '/'));
     final folder = _folderOf(path);
     final existing = gitignoreFiles.map(_noTrailingSlash).toSet();
     final targets = <IgnoreTarget>[];
