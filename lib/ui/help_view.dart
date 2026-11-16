@@ -15,6 +15,7 @@ const List<KeyHelp> keyTable = [
   KeyHelp('j k ↑ ↓ (W S)', 'move the cursor'),
   KeyHelp('space', 'track the focused file'),
   KeyHelp('u', 'stop tracking, keep on disk'),
+  KeyHelp('i', 'ignore: pick scope and which ignore file'),
   KeyHelp('c', 'jump to the commit message'),
   KeyHelp('r', 'refresh from git'),
   KeyHelp('Tab / Shift+Tab', 'next / previous pane'),

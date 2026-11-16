@@ -5,6 +5,7 @@ import '../state/changes.dart';
 import '../state/repo.dart';
 import 'changes_view.dart';
 import 'help_view.dart';
+import 'ignore_dialog.dart';
 import 'nav_keys.dart';
 
 /// The modes the app shows; the rail lists them in this order.
@@ -111,6 +112,10 @@ class ShellState extends State<Shell> {
       return KeyEventResult.handled;
     }
     if (!isPlain(event)) return KeyEventResult.ignored;
+    if (event.character?.toLowerCase() == 'i') {
+      ignoreSelectedRow();
+      return KeyEventResult.handled;
+    }
     switch (event.character?.toLowerCase()) {
       case ' ':
         changes.trackSelected();
@@ -124,6 +129,24 @@ class ShellState extends State<Shell> {
         return KeyEventResult.ignored;
     }
     return KeyEventResult.handled;
+  }
+
+  /// Ask how wide the rule is and where it goes, then write it.
+  Future<void> ignoreSelectedRow() async {
+    final row = changes.selected;
+    if (row == null) return;
+    final targets = await changes.ignoreTargets();
+    if (!mounted || targets.isEmpty) return;
+    final choice = await IgnoreDialog.show(context, row: row, targets: targets);
+    if (choice == null || !mounted) return;
+    final problem = await changes.ignoreSelected(
+      scope: choice.scope,
+      target: choice.target,
+      stopTracking: choice.stopTracking,
+    );
+    if (problem != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(problem)));
+    }
   }
 
   static const _altDigits = {
@@ -157,6 +180,7 @@ class ShellState extends State<Shell> {
             changes: changes,
             commitController: commitController,
             commitFocus: commitFocus,
+            onIgnore: ignoreSelectedRow,
           ),
           const SettingsPlaceholder(),
           const HelpView(),

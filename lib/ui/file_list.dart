@@ -7,9 +7,10 @@ import 'changes_view.dart';
 /// The list itself: one row per staged/changed/untracked path, grouped by
 /// section, with the focused row kept in view.
 class FileList extends StatefulWidget {
-  const FileList({super.key, required this.changes});
+  const FileList({super.key, required this.changes, required this.onIgnore});
 
   final Changes changes;
+  final VoidCallback onIgnore;
 
   @override
   State<FileList> createState() => _FileListState();
@@ -63,6 +64,10 @@ class _FileListState extends State<FileList> {
           onTap: () => changes.select(index),
           onTrack: () => changes.trackSelected(),
           onUntrack: () => changes.untrackSelected(),
+          onIgnore: () {
+            changes.select(index);
+            widget.onIgnore();
+          },
         ));
       }
     }
@@ -79,6 +84,7 @@ class RowTile extends StatelessWidget {
     required this.onTap,
     required this.onTrack,
     required this.onUntrack,
+    required this.onIgnore,
   });
 
   final StatusRow row;
@@ -86,6 +92,7 @@ class RowTile extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onTrack;
   final VoidCallback onUntrack;
+  final VoidCallback onIgnore;
 
   @override
   Widget build(BuildContext context) {
@@ -97,6 +104,7 @@ class RowTile extends StatelessWidget {
         cursor: SystemMouseCursors.click,
         child: InkWell(
           onTap: onTap,
+          onSecondaryTap: onIgnore,
           child: Container(
             color: focused ? scheme.secondaryContainer : null,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -109,6 +117,7 @@ class RowTile extends StatelessWidget {
                   _Action(icon: Icons.remove_circle_outline, tooltip: 'Untrack', onTap: onUntrack)
                 else if (!row.isConflict)
                   _Action(icon: Icons.add_circle_outline, tooltip: 'Track', onTap: onTrack),
+                _Action(icon: Icons.block, tooltip: 'Ignore', onTap: onIgnore),
               ],
             ),
           ),

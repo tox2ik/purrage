@@ -114,7 +114,7 @@ class Repo {
       '--others',
       '--exclude-standard',
       '--',
-      '**/.gitignore',
+      ':(glob)**/.gitignore',
     ]);
     final found = (result.stdout as String)
         .split('\n')
@@ -146,7 +146,73 @@ class Repo {
       await handle.close();
     }
   }
+
+  /// `.git/info/exclude` for this repository, resolved through git so worktrees
+  /// and submodules land on the right file.
+  Future<String> localExcludePath() async {
+    final result = await _git(['rev-parse', '--git-path', 'info/exclude']);
+    var out = (result.stdout as String).trim();
+    if (out.isEmpty) out = '.git/info/exclude';
+    final absolute = out.startsWith('/') || RegExp(r'^[A-Za-z]:').hasMatch(out)
+        ? out
+        : '$path/$out';
+    return absolute.replaceAll(r'\', '/');
+  }
+
+  /// The global ignore file: `core.excludesFile`, else `~/.config/git/ignore`.
+  Future<String> globalIgnorePath() async {
+    final result = await _git(['config', '--get', 'core.excludesFile'], throwOnError: false);
+    final configured = (result.stdout as String).trim();
+    if (configured.isNotEmpty) return _expandHome(configured).replaceAll(r'\', '/');
+    final home = Platform.environment['USERPROFILE'] ?? Platform.environment['HOME'] ?? '';
+    final xdg = Platform.environment['XDG_CONFIG_HOME'];
+    final base = (xdg == null || xdg.isEmpty) ? '$home/.config' : xdg;
+    return '$base/git/ignore'.replaceAll(r'\', '/');
+  }
+
+  static String _expandHome(String path) {
+    if (!path.startsWith('~')) return path;
+    final home = Platform.environment['USERPROFILE'] ?? Platform.environment['HOME'] ?? '';
+    return '$home${path.substring(1)}';
+  }
+
+  /// Text of an ignore file, or an empty string when it does not exist yet.
+  Future<String> readTextFile(String absolutePath) async {
+    final file = File(absolutePath);
+    if (!await file.exists()) return '';
+    return file.readAsString();
+  }
+
+  /// Append one rule to an ignore file, keeping its line endings and leaving one
+  /// blank line before the new rule. A rule already present is left alone.
+  Future<IgnoreAppend> appendIgnoreLine(String absolutePath, String pattern) async {
+    final file = File(absolutePath);
+    final existing = await readTextFile(absolutePath);
+    final present = existing
+        .split(RegExp(r'\r?\n'))
+        .map((line) => line.trim())
+        .any((line) => line == pattern);
+    if (present) return IgnoreAppend.duplicate;
+
+    final eol = existing.contains('\r\n') ? '\r\n' : '\n';
+    final buffer = StringBuffer(existing);
+    if (existing.isEmpty) {
+      buffer.write('# Glustered$eol');
+    } else if (existing.endsWith('\n')) {
+      buffer.write(eol);
+    } else {
+      buffer.write(eol);
+      buffer.write(eol);
+    }
+    buffer.write('$pattern$eol');
+    await file.parent.create(recursive: true);
+    await file.writeAsString(buffer.toString());
+    return IgnoreAppend.added;
+  }
 }
+
+/// What appending a rule did.
+enum IgnoreAppend { added, duplicate }
 
 /// One line of `git check-ignore -v`: the file, the line, and the pattern that
 /// decided it.

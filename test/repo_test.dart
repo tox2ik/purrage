@@ -85,5 +85,45 @@ void main() {
       expect((await repo.preview('data.bin')).binary, isTrue);
       expect((await repo.preview('text.md', maxBytes: 3)).truncated, isTrue);
     });
+
+    test('appendIgnoreLine creates a file with a header and then appends', () async {
+      final temp = await TempRepo.make();
+      final repo = await Repo.open(temp.path);
+      final nested = '${temp.path}/lib/generated/.gitignore';
+
+      expect(await repo.appendIgnoreLine(nested, '/cache/'), IgnoreAppend.added);
+      expect(await repo.appendIgnoreLine(nested, '*.g.dart'), IgnoreAppend.added);
+      expect(await repo.appendIgnoreLine(nested, '*.g.dart'), IgnoreAppend.duplicate);
+
+      final text = await File(nested).readAsString();
+      expect(text, startsWith('# Glustered\n'));
+      expect(text.split('\n').where((line) => line.isNotEmpty), [
+        '# Glustered',
+        '/cache/',
+        '*.g.dart',
+      ]);
+    });
+
+    test('appendIgnoreLine keeps CRLF and one blank line between blocks', () async {
+      final temp = await TempRepo.make();
+      await temp.write('.gitignore', 'build/\r\n*.log\r\n');
+      final repo = await Repo.open(temp.path);
+      await repo.appendIgnoreLine('${temp.path}/.gitignore', '/notes.md');
+      final text = await File('${temp.path}/.gitignore').readAsString();
+      expect(text, 'build/\r\n*.log\r\n\r\n/notes.md\r\n');
+    });
+
+    test('a nested rule can be written and git honours it', () async {
+      final temp = await TempRepo.make();
+      await temp.write('lib/generated/a.g.dart', 'x\n');
+      final repo = await Repo.open(temp.path);
+      final targets = await repo.gitignoreFiles();
+      expect(targets, contains('.gitignore'));
+      final nested = '${temp.path}/lib/generated/.gitignore';
+      await repo.appendIgnoreLine(nested, '/a.g.dart');
+      expect(await repo.checkIgnore('lib/generated/a.g.dart'), isNotNull);
+      final rows = await repo.status();
+      expect(rows.map((r) => r.path), isNot(contains('lib/generated/a.g.dart')));
+    });
   });
 }

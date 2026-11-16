@@ -14,11 +14,13 @@ class ChangesView extends StatelessWidget {
     required this.changes,
     required this.commitController,
     required this.commitFocus,
+    required this.onIgnore,
   });
 
   final Changes changes;
   final TextEditingController commitController;
   final FocusNode commitFocus;
+  final VoidCallback onIgnore;
 
   @override
   Widget build(BuildContext context) {
@@ -32,7 +34,7 @@ class ChangesView extends StatelessWidget {
               children: [
                 SizedBox(
                   width: 340,
-                  child: FileList(changes: changes),
+                  child: FileList(changes: changes, onIgnore: onIgnore),
                 ),
                 const VerticalDivider(width: 1),
                 Expanded(

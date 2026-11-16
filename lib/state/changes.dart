@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import 'ignore_rules.dart';
 import 'repo.dart';
 import 'status.dart';
 
@@ -125,6 +126,65 @@ class Changes extends ChangeNotifier {
     if (message.isEmpty || !canCommit) return false;
     await _run(() => repo.commit(message));
     return _error == null;
+  }
+
+  /// The ignore files to offer for the focused file, narrowest first.
+  Future<List<IgnoreTarget>> ignoreTargets() async {
+    final row = selected;
+    if (row == null) return const [];
+    final gitignores = await repo.gitignoreFiles();
+    return IgnoreRules.targets(
+      repoPath: repo.path,
+      gitignoreFiles: gitignores,
+      localExclude: await repo.localExcludePath(),
+      globalIgnore: await repo.globalIgnorePath(),
+      path: row.path,
+    );
+  }
+
+  /// The rule [scope] would write into [target], for the dialog preview.
+  static String? previewPattern({
+    required IgnoreScope scope,
+    required IgnoreTarget target,
+    required String path,
+  }) =>
+      IgnoreRules.pattern(scope: scope, targetDir: target.dir, path: path);
+
+  /// Write an ignore rule for the focused file.
+  ///
+  /// Returns null when it was written, or a sentence explaining why nothing was
+  /// written — a rule that would never match must not be added silently.
+  Future<String?> ignoreSelected({
+    required IgnoreScope scope,
+    required IgnoreTarget target,
+    bool stopTracking = false,
+  }) async {
+    final row = selected;
+    if (row == null) return 'nothing selected';
+    final pattern = IgnoreRules.pattern(scope: scope, targetDir: target.dir, path: row.path);
+    if (pattern == null) return 'this scope makes no rule for ${row.name}';
+
+    final existing = await repo.checkIgnore(row.path);
+    if (existing != null) {
+      final where = '${_shortSource(existing.source)}:${existing.line}';
+      return '${row.path} is already ignored by `${existing.pattern}` in $where';
+    }
+
+    final appended = await repo.appendIgnoreLine(target.path, pattern);
+    if (appended == IgnoreAppend.duplicate) {
+      return '`$pattern` is already in ${_shortSource(target.path)}';
+    }
+    if (stopTracking) {
+      await repo.untrack(row.path);
+    }
+    await load();
+    return null;
+  }
+
+  String _shortSource(String path) {
+    final repoPath = repo.path.replaceAll(r'\', '/');
+    final clean = path.replaceAll(r'\', '/');
+    return clean.startsWith('$repoPath/') ? clean.substring(repoPath.length + 1) : clean;
   }
 
   Future<void> _run(Future<void> Function() action) async {
