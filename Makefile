@@ -1,27 +1,53 @@
 SHELL := pwsh.exe
 .SHELLFLAGS := -NoProfile -NoLogo -Command
 .DEFAULT_GOAL := help
+.PHONY: run live test analyze format where help
+
+# --- the Flutter SDK -------------------------------------------------------
+# Neovim and other tools start make with a PATH that may not have Flutter on it,
+# so the SDK is looked up in the places it is installed, and only then by name.
+FLUTTER_PATHS := \
+  H:/flutter/bin/flutter.bat \
+  C:/tools/flutter/bin/flutter.bat \
+  C:/flutter/bin/flutter.bat \
+  D:/flutter/bin/flutter.bat \
+  $(USERPROFILE)/flutter/bin/flutter.bat \
+  $(LOCALAPPDATA)/flutter/bin/flutter.bat
+
+FLUTTER_FOUND := $(firstword $(wildcard $(FLUTTER_PATHS)))
+
+ifeq ($(strip $(FLUTTER_FOUND)),)
+FLUTTER := flutter
+DART := dart
+else
+FLUTTER := $(FLUTTER_FOUND)
+DART := $(patsubst %flutter.bat,%dart.bat,$(FLUTTER))
+endif
 
 ##@ app
 
 run: ## run the app against the current folder
-	flutter run -d windows
+	& "$(FLUTTER)" run -d windows
 
 live: ## run the app, everything also written to out/live.log
-	New-Item -ItemType Directory -Force out | Out-Null; flutter run -d windows ~ 2>&1 | Tee-Object -FilePath out/live.log
+	New-Item -ItemType Directory -Force out | Out-Null; & "$(FLUTTER)" run -d windows 2>&1 | Tee-Object -FilePath out/live.log
 
 ##@ checks
 
 test: ## the whole test suite, one file at a time
-	flutter test
+	& "$(FLUTTER)" test
 
 analyze: ## static analysis
-	flutter analyze
+	& "$(FLUTTER)" analyze
 
 format: ## format lib and test
-	dart format lib test
+	& "$(DART)" format lib test
 
-##@ help
+##@ other
+
+where: ## which Flutter and Dart the targets will use
+	@Write-Output "flutter: $(FLUTTER)"
+	@Write-Output "dart:    $(DART)"
 
 help: ## this list
 	@Get-Content $(firstword $(MAKEFILE_LIST)) | Select-String -Pattern '^(##@|[a-z-]+:.*## )' | ForEach-Object { $$l = $$_.Line; if ($$l -like '##@*') { ''; $$l.Substring(4) } else { $$p = $$l -split ':.*## ', 2; '  {0,-8} {1}' -f $$p[0], $$p[1] } }

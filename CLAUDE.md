@@ -17,7 +17,10 @@ without widgets). Project management lives here too: `backlog/` (Backlog.md task
 - `make analyze`: `flutter analyze`
 - `make format`: `dart format lib test`
 
-Flutter is the one on PATH (`H:\flutter`); pub cache is the default.
+Flutter is discovered by the Makefile (`make where` prints the pair it picked): it tries
+`H:/flutter`, `C:/tools/flutter`, `C:/flutter`, `D:/flutter`, `%USERPROFILE%/flutter` and
+`%LOCALAPPDATA%/flutter`, and only falls back to plain `flutter`/`dart` from `PATH`. That is why
+`make live` works from Neovim, whose PATH does not have Flutter on it.
 
 ## Running tests
 
