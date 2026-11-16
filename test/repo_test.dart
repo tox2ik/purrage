@@ -76,16 +76,6 @@ void main() {
       expect(await repo.checkIgnore('.gitignore'), isNull);
     });
 
-    test('preview reads text, marks binary and truncates', () async {
-      final temp = await TempRepo.make();
-      await temp.write('text.md', 'line one\nline two\n');
-      await temp.write('data.bin', 'a\u0000b');
-      final repo = await Repo.open(temp.path);
-      expect((await repo.preview('text.md')).text, contains('line two'));
-      expect((await repo.preview('data.bin')).binary, isTrue);
-      expect((await repo.preview('text.md', maxBytes: 3)).truncated, isTrue);
-    });
-
     test('appendIgnoreLine creates a file with a header and then appends', () async {
       final temp = await TempRepo.make();
       final repo = await Repo.open(temp.path);

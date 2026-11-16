@@ -15,15 +15,6 @@ class GitException implements Exception {
   String toString() => message;
 }
 
-/// What the preview pane can show for one path.
-class FilePreview {
-  const FilePreview({required this.text, this.truncated = false, this.binary = false});
-
-  final String text;
-  final bool truncated;
-  final bool binary;
-}
-
 /// The one door to git. Everything shelling out happens here.
 ///
 /// `GitDir` (the `git` package) owns repository discovery and the process
@@ -122,29 +113,6 @@ class Repo {
         .where((line) => line.isNotEmpty)
         .toList();
     return found;
-  }
-
-  /// Text of a file in the working tree, capped so the UI stays quick.
-  Future<FilePreview> preview(String path, {int maxBytes = 200 * 1024}) async {
-    final file = File('${this.path}/$path');
-    if (!await file.exists()) {
-      return const FilePreview(text: '');
-    }
-    final handle = await file.open();
-    try {
-      final length = await handle.length();
-      final read = length > maxBytes ? maxBytes : length;
-      final bytes = await handle.read(read);
-      if (bytes.contains(0)) {
-        return const FilePreview(text: '', binary: true);
-      }
-      return FilePreview(
-        text: utf8.decode(bytes, allowMalformed: true),
-        truncated: length > read,
-      );
-    } finally {
-      await handle.close();
-    }
   }
 
   /// `.git/info/exclude` for this repository, resolved through git so worktrees

@@ -5,7 +5,7 @@ import 'repo.dart';
 import 'status.dart';
 
 /// The state of the Changes mode: what git says, which row is focused, what the
-/// preview shows, and the actions that change the index.
+/// and the actions that change the index.
 ///
 /// Everything the UI needs to decide is here, so tests drive this class without
 /// widgets.
@@ -20,8 +20,6 @@ class Changes extends ChangeNotifier {
   int _index = 0;
   bool _busy = false;
   String? _error;
-  FilePreview? _preview;
-  String? _previewPath;
 
   List<StatusRow> get rows => _rows;
 
@@ -33,8 +31,6 @@ class Changes extends ChangeNotifier {
   int get index => _index;
   bool get busy => _busy;
   String? get error => _error;
-  FilePreview? get preview => _preview;
-  String? get previewPath => _previewPath;
 
   StatusRow? get selected => _visible.isEmpty ? null : _visible[_index];
 
@@ -63,7 +59,6 @@ class Changes extends ChangeNotifier {
       _busy = false;
       notifyListeners();
     }
-    await _loadPreview();
   }
 
   int _indexAfterReload(String? keepPath) {
@@ -79,14 +74,13 @@ class Changes extends ChangeNotifier {
     return bySection != 0 ? bySection : a.path.compareTo(b.path);
   }
 
-  /// Narrow the list; the cursor goes to the first match and the preview follows.
+  /// Narrow the list; the cursor goes to the first match.
   Future<void> setFilter(String query) async {
     if (query == _filter) return;
     _filter = query;
     _applyFilter();
     _index = 0;
     notifyListeners();
-    await _loadPreview();
   }
 
   void _applyFilter() {
@@ -100,7 +94,6 @@ class Changes extends ChangeNotifier {
     if (next == _index) return;
     _index = next;
     notifyListeners();
-    await _loadPreview();
   }
 
   Future<void> select(int index) async {
@@ -108,24 +101,6 @@ class Changes extends ChangeNotifier {
     final next = index.clamp(0, _visible.length - 1);
     if (next == _index) return;
     _index = next;
-    notifyListeners();
-    await _loadPreview();
-  }
-
-  Future<void> _loadPreview() async {
-    final row = selected;
-    if (row == null || row.path.endsWith('/')) {
-      _preview = null;
-      _previewPath = null;
-      notifyListeners();
-      return;
-    }
-    final path = row.path;
-    _previewPath = path;
-    final loaded = await repo.preview(path);
-    // A slower read must not overwrite the newer selection's preview.
-    if (_previewPath != path) return;
-    _preview = loaded;
     notifyListeners();
   }
 

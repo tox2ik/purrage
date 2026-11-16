@@ -50,8 +50,8 @@ Flutter is discovered by the Makefile (`make where` prints the pair it picked): 
 ## Keys and mouse
 
 - The Ops contract, copied: `navKey(event)` for Up/Down and `j`/`k`/WASD, `KeySequence` for
-  two-key commands, Tab/Shift+Tab between panes with wrapping, Right/Left between list and
-  preview, plain keys ignored while a text field has focus.
+  two-key commands, Tab/Shift+Tab between panes with wrapping, plain keys ignored while a text
+  field (the filter, the commit summary) has focus.
 - A new key goes into three places: the handler, `keyTable` in `lib/ui/help_view.dart` (Help
   mode), and the Keys section of `PLAN.md`.
 - The debug bar (bug button, bottom right) names the focused element by its role and shows the

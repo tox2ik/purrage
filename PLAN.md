@@ -9,8 +9,8 @@ and the code disagree, fix one of them deliberately.
 ## Scope, version 1
 
 - The loop: **status list → track / untrack / ignore → commit**.
-- A read-only **preview pane** with the text of the focused file. That is the only "diff-like"
-  view; there is no diff, no hunk staging, no history.
+- The file list fills the window. There is **no preview and no diff** - not the text of the file,
+  not hunks, not history. Pressing a row does not open anything.
 - No branches, no remotes, no fetch/pull/push, no stashes, no conflict resolution UI beyond
   showing conflicted paths in their own section.
 - Project management lives in this repo: `backlog/` (Backlog.md) for tasks, `openspec/` for
@@ -22,7 +22,7 @@ and the code disagree, fix one of them deliberately.
 - Platform: **Windows only** for now (`flutter create --platforms=windows`).
 - Git access: the **`git` package** (kevmoo, Dart team) for process plumbing and `GitDir`;
   Glustered owns only the **porcelain status parser** and the row/section model.
-- Layout: **file list on the left, preview on the right**, commit bar across the bottom.
+- Layout: **one file list across the window**, commit bar across the bottom.
 - Keys and mouse: **the Ops contract**, copied (see Keys below).
 - Commit message: **one summary line, nothing else**. No body, no trailer, no template.
 - `.gitignore` is **not edited in the app**. The pane is read-only: it lists the patterns and
@@ -115,10 +115,8 @@ The ignore pane becomes a list of `.gitignore` files, not one file:
 
 - Modes: `Alt+1` Changes, `Alt+2` Settings, `Alt+3` Help; `Alt+]` / `Alt+[` cycle; `?` opens Help.
 - Motion: Up/Down, `j`/`k`, and WASD via the shared `navKey(event)`; never bound per handler.
-- Panes: `Tab` / `Shift+Tab` in visual order and wrapping; `Right`/`l` from the list into the
-  preview, `Left`/`h` back; past the last row goes to the pane below, past the first to the pane
-  above; `Ctrl+arrow` jumps in that direction.
-- In the preview: `Up`/`Down` scroll 3 lines, `Shift` (`J`/`K`) 10, `PgUp`/`PgDn`, `Home`/`End`.
+- Panes: `Tab` / `Shift+Tab` in visual order and wrapping. The list is the only pane today; the
+  commit field is the other stop. Past the last row stays on the last row.
 - Actions: `space` track, `u` untrack, `i` ignore menu, `e` open file, `E` open `.gitignore`,
   `c` commit, `r` refresh, `/` filter the list, `Esc` cancel/close.
 - Two-key commands go through `KeySequence`; plain keys are ignored while a text field has
@@ -130,13 +128,12 @@ The ignore pane becomes a list of `.gitignore` files, not one file:
   labels, the mode rail.
 - Single click selects a row (list keeps it in view), double click opens the file in the editor,
   right click opens the same menu as `i`.
-- The split between the list and the preview is dragged with the mouse (a grab bar that shows the
-  resize cursor and a tooltip), clamped to 260–820 px and starting at 460. The list is wide enough
-  for ordinary paths; a path longer than the pane is cut with an ellipsis, never widened for.
+- A path longer than the window is cut with an ellipsis; the row tooltip still holds the whole
+  path.
 - A row reads folder first, then name, in two fixed shares of the row, so names line up under each
   other whatever the folder depths are.
 - Row-end buttons appear on hover: track, ignore, open. File rows use the pointer cursor; there
-  is no `SelectionArea` in the list, only in the preview.
+  is no `SelectionArea` in the list.
 
 ## Editor detection and Settings
 
@@ -154,7 +151,7 @@ The ignore pane becomes a list of `.gitignore` files, not one file:
 ## Shape of the code
 
 - `lib/ui/shell.dart` — mode rail, app-wide keys, gives the keyboard to the shown mode.
-- `lib/ui/` — `file_list.dart`, `preview.dart`, `ignore_pane.dart`, `commit_bar.dart`,
+- `lib/ui/` — `file_list.dart`, `filter_field.dart`, `ignore_dialog.dart`, `commit_bar.dart`,
   `settings_view.dart`, `help_view.dart` (with `keyTable`), `nav_keys.dart`, `key_sequence.dart`,
   `hover_row.dart`, `reveal.dart`, `error_view.dart`, `debug_bar.dart`, `confirm_dialog.dart`.
 - `lib/state/` — `repo.dart` (the `git` package wrapper), `status.dart` (parser + model),

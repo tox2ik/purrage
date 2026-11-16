@@ -4,12 +4,9 @@ import '../state/changes.dart';
 import '../state/status.dart';
 import 'commit_bar.dart';
 import 'file_list.dart';
-import 'preview.dart';
 
-/// The Changes mode: the file list on the left, the preview on the right, the
-/// commit bar across the bottom. The split between them is dragged with the
-/// mouse and starts wide enough for ordinary paths.
-class ChangesView extends StatefulWidget {
+/// The Changes mode: the file list, the commit bar across the bottom.
+class ChangesView extends StatelessWidget {
   const ChangesView({
     super.key,
     required this.changes,
@@ -28,90 +25,31 @@ class ChangesView extends StatefulWidget {
   final FocusNode filterFocus;
 
   @override
-  State<ChangesView> createState() => _ChangesViewState();
-}
-
-class _ChangesViewState extends State<ChangesView> {
-  /// Wide enough for most paths; outliers are cut with an ellipsis rather than
-  /// widening the pane.
-  static const double startingWidth = 460;
-  static const double minWidth = 260;
-  static const double maxWidth = 820;
-
-  double width = startingWidth;
-
-  @override
   Widget build(BuildContext context) {
-    final changes = widget.changes;
     return ListenableBuilder(
       listenable: changes,
       builder: (context, _) => Column(
         children: [
           if (changes.error != null) _ErrorBanner(message: changes.error!),
           Expanded(
-            child: Row(
-              children: [
-                SizedBox(
-                  width: width,
-                  child: FileList(
-                    changes: changes,
-                    onIgnore: widget.onIgnore,
-                    filterController: widget.filterController,
-                    filterFocus: widget.filterFocus,
-                  ),
-                ),
-                SplitHandle(
-                  onDrag: (delta) => setState(() {
-                    width = (width + delta).clamp(minWidth, maxWidth);
-                  }),
-                ),
-                Expanded(
-                  child: PreviewPane(
-                    preview: changes.preview,
-                    path: changes.previewPath,
-                  ),
-                ),
-              ],
+            child: FileList(
+              changes: changes,
+              onIgnore: onIgnore,
+              filterController: filterController,
+              filterFocus: filterFocus,
             ),
           ),
           const Divider(height: 1),
           CommitBar(
             changes: changes,
-            controller: widget.commitController,
-            focusNode: widget.commitFocus,
+            controller: commitController,
+            focusNode: commitFocus,
           ),
         ],
       ),
     );
   }
 }
-
-/// The divider between the list and the preview: a grab bar that resizes the
-/// list while the mouse drags it.
-class SplitHandle extends StatelessWidget {
-  const SplitHandle({super.key, required this.onDrag});
-
-  final ValueChanged<double> onDrag;
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: 'Drag to resize the file list',
-      child: MouseRegion(
-        cursor: SystemMouseCursors.resizeLeftRight,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onHorizontalDragUpdate: (details) => onDrag(details.delta.dx),
-          child: const SizedBox(
-            width: 7,
-            child: Center(child: SizedBox(width: 1, child: ColoredBox(color: Color(0x33FFFFFF)))),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _ErrorBanner extends StatelessWidget {
   const _ErrorBanner({required this.message});
 
