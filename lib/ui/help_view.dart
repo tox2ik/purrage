@@ -12,7 +12,9 @@ class KeyHelp {
 const List<KeyHelp> keyTable = [
   KeyHelp('Alt+1 / Alt+2 / Alt+3', 'Changes, Settings, Help'),
   KeyHelp('Alt+] / Alt+[', 'next / previous mode'),
-  KeyHelp('j k ↑ ↓ (W S)', 'move the cursor'),
+  KeyHelp('j k Up Down (W S)', 'move the cursor'),
+  KeyHelp('Shift+Up / Shift+Down', 'extend the highlight from the anchor'),
+  KeyHelp('Ctrl+Enter', 'highlight or un-highlight the cursor row'),
   KeyHelp('space', 'track the focused file'),
   KeyHelp('u', 'stop tracking, keep on disk'),
   KeyHelp('i', 'ignore: pick scope and which ignore file'),

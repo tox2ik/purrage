@@ -53,6 +53,8 @@ class ShellState extends State<Shell> {
   late final Editors editors = Editors(prefs: prefs);
   late final IgnorePaneState ignorePane = IgnorePaneState(widget.repo);
   String? editorCommand;
+  /// Success messages for ignore stop after three; errors always speak.
+  int ignoreMessagesShown = 0;
   Mode mode = Mode.changes;
 
   @override
@@ -128,9 +130,18 @@ class ShellState extends State<Shell> {
   }
 
   KeyEventResult _changesKey(KeyEvent event) {
+    final keyboard = HardwareKeyboard.instance;
+    if (event.logicalKey == LogicalKeyboardKey.enter && keyboard.isControlPressed) {
+      changes.toggleFocused();
+      return KeyEventResult.handled;
+    }
     final delta = navDelta(event);
     if (delta != null) {
-      changes.move(delta);
+      if (keyboard.isShiftPressed) {
+        changes.extendSelection(delta);
+      } else {
+        changes.move(delta);
+      }
       return KeyEventResult.handled;
     }
     if (!isPlain(event)) return KeyEventResult.ignored;
@@ -152,9 +163,9 @@ class ShellState extends State<Shell> {
     }
     switch (event.character?.toLowerCase()) {
       case ' ':
-        changes.trackSelected();
+        trackSel();
       case 'u':
-        changes.untrackSelected();
+        untrackSel();
       case 'e':
         openFocusedFile();
       case 'r':
@@ -165,6 +176,22 @@ class ShellState extends State<Shell> {
         return KeyEventResult.ignored;
     }
     return KeyEventResult.handled;
+  }
+
+  /// `space`: stage the highlighted rows, and say how many.
+  Future<void> trackSel() async {
+    await changes.trackSelected();
+    if (mounted && changes.lastReport != null) {
+      say(changes.lastReport!.message('tracked'));
+    }
+  }
+
+  /// `u`: stop tracking the highlighted rows, and say how many.
+  Future<void> untrackSel() async {
+    await changes.untrackSelected();
+    if (mounted && changes.lastReport != null) {
+      say(changes.lastReport!.message('stopped tracking'));
+    }
   }
 
   /// `e`: open the focused file in the chosen editor.
@@ -191,10 +218,23 @@ class ShellState extends State<Shell> {
     try {
       final problem = await changes.ignoreQuick();
       if (!mounted) return;
-      say(problem ?? 'ignored ${changes.selectionCount} path(s) in the root .gitignore');
+      final report = changes.lastReport;
+      if (problem != null) {
+        say(problem);
+      } else if (report != null) {
+        sayOnceAboutIgnoring(report);
+      }
     } on Exception catch (error) {
       say('ignore failed: $error');
     }
+  }
+
+  /// The ignore success line, at most three times per run: repeating it for every
+  /// file turns a confirmation into noise. A refusal is still said every time.
+  void sayOnceAboutIgnoring(ActionReport report) {
+    if (ignoreMessagesShown >= 3) return;
+    ignoreMessagesShown++;
+    say(report.message('ignored'));
   }
 
   /// Shift+I: ask how wide the rule is and where it goes, then write it.
@@ -222,8 +262,12 @@ class ShellState extends State<Shell> {
         stopTracking: choice.stopTracking,
       );
       if (!mounted) return;
-      final where = choice.target.path;
-      say(problem ?? 'wrote a rule for ${changes.selectionCount} path(s) to $where');
+      final report = changes.lastReport;
+      if (problem != null) {
+        say(problem);
+      } else if (report != null) {
+        sayOnceAboutIgnoring(report);
+      }
     } on Exception catch (error) {
       say('ignore failed: $error');
     }

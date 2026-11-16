@@ -115,10 +115,12 @@ The ignore pane becomes a list of `.gitignore` files, not one file:
 
 - Modes: `Alt+1` Changes, `Alt+2` Settings, `Alt+3` Help; `Alt+]` / `Alt+[` cycle; `?` opens Help.
 - Motion: Up/Down, `j`/`k`, and WASD via the shared `navKey(event)`; never bound per handler.
-- Panes: `Tab` / `Shift+Tab` in visual order and wrapping. The list is the only pane today; the
-  commit field is the other stop. Past the last row stays on the last row.
-- Actions: `space` track, `u` untrack, `i` ignore menu, `e` open file, `E` open `.gitignore`,
-  `c` commit, `r` refresh, `/` filter the list, `Esc` cancel/close.
+- Selection: `Shift`+Up/Down grows the highlight from the anchor, one row per press; `Ctrl+Enter`
+  turns the cursor row's highlight on or off. The highlighted rows are what every action changes,
+  keyboard or mouse, and the result line counts them (`tracked 3 files`, `ignored 2 files`).
+- The ignore success line is said at most three times per run; a refusal is always said.
+- Actions: `space` track, `u` untrack, `i` ignore with the literal path, `Shift+I` the ignore
+  dialog, `e` open file, `E` open `.gitignore`, `c` commit, `r` refresh, `/` filter, `Esc` close.
 - Two-key commands go through `KeySequence`; plain keys are ignored while a text field has
   focus; every key is also listed in the Help table.
 

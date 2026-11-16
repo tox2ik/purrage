@@ -51,7 +51,7 @@ void main() {
     await tester.pump();
 
     expect(repo.writes.single, 'C:/repo/.gitignore|/notes.md');
-    expect(find.textContaining('wrote a rule'), findsOneWidget);
+    expect(find.textContaining('ignored 1 file'), findsOneWidget);
   });
 
   testWidgets('a refusal is shown, not swallowed', (tester) async {

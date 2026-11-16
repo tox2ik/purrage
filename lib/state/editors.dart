@@ -335,15 +335,33 @@ class Editors {
     found.add(option);
   }
 
+  /// `where` can find several matches (the exe, then a `.bat` wrapper earlier on
+  /// PATH). A `.bat`/`.cmd` is started through `cmd /c start`, which shows a
+  /// console window, so a real `.exe` is preferred whenever one is listed.
   static Future<String?> _systemWhich(String exe) async {
     try {
       final result = await Process.run('where', [exe], runInShell: false);
       if (result.exitCode != 0) return null;
-      final line = (result.stdout as String)
+      final found = (result.stdout as String)
           .split(RegExp(r'\r?\n'))
           .map((value) => value.trim())
-          .firstWhere((value) => value.isNotEmpty, orElse: () => '');
-      return line.isEmpty ? null : line;
+          .where((value) => value.isNotEmpty)
+          .toList();
+      if (found.isEmpty) return null;
+      // `.exe` first, then a shim Windows can start through cmd, then anything.
+      final exePath = found.firstWhere(
+        (value) => value.toLowerCase().endsWith('.exe'),
+        orElse: () => '',
+      );
+      if (exePath.isNotEmpty) return exePath;
+      final shim = found.firstWhere(
+        (value) {
+          final lower = value.toLowerCase();
+          return lower.endsWith('.cmd') || lower.endsWith('.bat');
+        },
+        orElse: () => '',
+      );
+      return shim.isNotEmpty ? shim : found.first;
     } on ProcessException {
       return null;
     }

@@ -95,13 +95,13 @@ void main() {
       ]);
     });
 
-    test('appendIgnoreLine keeps CRLF and one blank line between blocks', () async {
+    test('appendIgnoreLine keeps CRLF and adds no blank line between rules', () async {
       final temp = await TempRepo.make();
       await temp.write('.gitignore', 'build/\r\n*.log\r\n');
       final repo = await Repo.open(temp.path);
       await repo.appendIgnoreLine('${temp.path}/.gitignore', '/notes.md');
       final text = await File('${temp.path}/.gitignore').readAsString();
-      expect(text, 'build/\r\n*.log\r\n\r\n/notes.md\r\n');
+      expect(text, 'build/\r\n*.log\r\n/notes.md\r\n');
     });
 
     test('a nested rule can be written and git honours it', () async {

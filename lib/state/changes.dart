@@ -44,13 +44,13 @@ class Changes extends ChangeNotifier {
   /// The row under the cursor.
   StatusRow? get selected => _visible.isEmpty ? null : _visible[_index];
 
-  /// The rows the actions work on: the selection, or the cursor row.
-  List<StatusRow> get actionRows {
-    final chosen = selectedRows;
-    if (chosen.isNotEmpty) return chosen;
-    final row = selected;
-    return row == null ? const [] : [row];
-  }
+  /// The rows the actions work on: exactly the highlighted ones. A plain move
+  /// highlights the row it lands on, so there is always a target unless the user
+  /// turned everything off with Ctrl+Enter.
+  List<StatusRow> get actionRows => selectedRows;
+
+  /// What the last action did, for the one message the UI shows.
+  ActionReport? lastReport;
 
   List<StatusRow> get selectedRows => [
         for (final row in _visible)
@@ -147,6 +147,35 @@ class Changes extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Shift+Up / Shift+Down: move the cursor one row and take the range from the
+  /// anchor with it, so the earlier rows stay highlighted.
+  Future<void> extendSelection(int delta) async {
+    if (_visible.isEmpty) return;
+    final next = (_index + delta).clamp(0, _visible.length - 1);
+    if (next == _index) return;
+    final from = _anchor ?? _index;
+    _index = next;
+    final low = from < next ? from : next;
+    final high = from < next ? next : from;
+    _selection.clear();
+    for (var i = low; i <= high; i++) {
+      _selection.add(_key(_visible[i]));
+    }
+    _anchor = from;
+    notifyListeners();
+  }
+
+  /// Ctrl+Enter: turn the cursor row's highlight on or off, leaving the rest of
+  /// the selection alone.
+  Future<void> toggleFocused() async {
+    final row = selected;
+    if (row == null) return;
+    final key = _key(row);
+    if (!_selection.remove(key)) _selection.add(key);
+    _anchor = _index;
+    notifyListeners();
+  }
+
   /// A click in the list. [ctrl] toggles one row, [shift] takes the range from
   /// the anchor, a plain click selects just that row.
   Future<void> click(int index, {bool ctrl = false, bool shift = false}) async {
@@ -187,16 +216,33 @@ class Changes extends ChangeNotifier {
 
   /// Stage every selected file, or its deletion when it is gone.
   Future<void> trackSelected() => _run(() async {
-        final paths = actionRows.where((row) => !row.isConflict).map((row) => row.path).toList();
+        final rows = actionRows;
+        final paths = rows.where((row) => !row.isConflict).map((row) => row.path).toList();
+        if (paths.isEmpty) {
+          lastReport = ActionReport(done: 0, skipped: [
+            for (final row in rows) '${row.path}: a conflict offers only ignore and open',
+          ]);
+          return;
+        }
         await repo.track(paths);
+        lastReport = ActionReport(done: paths.length);
       });
 
   /// Stop tracking the selected files, leaving them on disk.
   Future<void> untrackSelected() => _run(() async {
-        final rows = actionRows.where((row) => !row.isConflict && row.section != Section.untracked);
-        for (final row in rows) {
+        final rows = actionRows;
+        final tracked = rows.where((row) => !row.isConflict && row.section != Section.untracked);
+        final skipped = [
+          for (final row in rows)
+            if (row.isConflict || row.section == Section.untracked)
+              '${row.path}: not tracked',
+        ];
+        var done = 0;
+        for (final row in tracked) {
           await repo.untrack(row.path);
+          done++;
         }
+        lastReport = ActionReport(done: done, skipped: skipped);
       });
 
   /// Commit the index with one summary line.
@@ -331,6 +377,11 @@ class Changes extends ChangeNotifier {
       added++;
     }
     await load();
+    lastReport = ActionReport(
+      done: added,
+      skipped: skipped,
+      note: _shortSource(target.path),
+    );
     if (skipped.isEmpty) return null;
     final head = skipped.take(3).join('; ');
     final more = skipped.length > 3 ? ' (+${skipped.length - 3} more)' : '';
@@ -367,5 +418,29 @@ class Changes extends ChangeNotifier {
     _busy = false;
     notifyListeners();
     await load();
+  }
+}
+
+/// What one action changed, in the words the UI shows.
+class ActionReport {
+  const ActionReport({required this.done, this.skipped = const [], this.note});
+
+  /// Rows the action actually changed.
+  final int done;
+
+  /// One sentence per row that was left alone, with the reason.
+  final List<String> skipped;
+
+  /// Where it happened: the ignore file written, for the ignore actions.
+  final String? note;
+
+  /// `tracked 3 files in .gitignore, skipped 1: a.log already there`.
+  String message(String verb) {
+    final files = done == 1 ? '1 file' : '$done files';
+    final where = note == null ? '' : ' in $note';
+    final head = done == 0 ? 'nothing changed' : '$verb $files$where';
+    if (skipped.isEmpty) return head;
+    final more = skipped.length > 3 ? ' (+${skipped.length - 3} more)' : '';
+    return '$head, skipped ${skipped.length}: ${skipped.take(3).join('; ')}$more';
   }
 }

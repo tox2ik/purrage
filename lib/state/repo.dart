@@ -178,10 +178,7 @@ class Repo implements GitRepo {
     final buffer = StringBuffer(existing);
     if (existing.isEmpty) {
       buffer.write('# Glustered$eol');
-    } else if (existing.endsWith('\n')) {
-      buffer.write(eol);
-    } else {
-      buffer.write(eol);
+    } else if (!existing.endsWith('\n')) {
       buffer.write(eol);
     }
     buffer.write('$pattern$eol');
