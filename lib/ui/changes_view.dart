@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../state/changes.dart';
+import '../state/ignore_files.dart';
 import '../state/status.dart';
 import 'commit_bar.dart';
 import 'file_list.dart';
+import 'ignore_pane.dart';
 
 /// The Changes mode: the file list, the commit bar across the bottom.
 class ChangesView extends StatelessWidget {
@@ -15,6 +17,9 @@ class ChangesView extends StatelessWidget {
     required this.onIgnore,
     required this.filterController,
     required this.filterFocus,
+    required this.ignoreState,
+    required this.onOpenIgnore,
+    required this.onNewIgnore,
   });
 
   final Changes changes;
@@ -23,6 +28,9 @@ class ChangesView extends StatelessWidget {
   final VoidCallback onIgnore;
   final TextEditingController filterController;
   final FocusNode filterFocus;
+  final IgnorePaneState ignoreState;
+  final VoidCallback onOpenIgnore;
+  final VoidCallback onNewIgnore;
 
   @override
   Widget build(BuildContext context) {
@@ -32,11 +40,26 @@ class ChangesView extends StatelessWidget {
         children: [
           if (changes.error != null) _ErrorBanner(message: changes.error!),
           Expanded(
-            child: FileList(
-              changes: changes,
-              onIgnore: onIgnore,
-              filterController: filterController,
-              filterFocus: filterFocus,
+            child: Row(
+              children: [
+                Expanded(
+                  child: FileList(
+                    changes: changes,
+                    onIgnore: onIgnore,
+                    filterController: filterController,
+                    filterFocus: filterFocus,
+                  ),
+                ),
+                const VerticalDivider(width: 1),
+                SizedBox(
+                  width: 360,
+                  child: IgnorePane(
+                    state: ignoreState,
+                    onOpenInEditor: onOpenIgnore,
+                    onNewHere: onNewIgnore,
+                  ),
+                ),
+              ],
             ),
           ),
           const Divider(height: 1),

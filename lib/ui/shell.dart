@@ -2,11 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../state/changes.dart';
+import '../state/editors.dart';
 import '../state/git_repo.dart';
+import '../state/ignore_files.dart';
+import '../state/prefs.dart';
 import 'changes_view.dart';
+import 'debug_bar.dart';
 import 'help_view.dart';
 import 'ignore_dialog.dart';
 import 'nav_keys.dart';
+import 'settings_view.dart';
 
 /// The modes the app shows; the rail lists them in this order.
 enum Mode { changes, settings, help }
@@ -44,16 +49,26 @@ class ShellState extends State<Shell> {
   final FocusNode commitFocus = FocusNode(debugLabel: 'commit message');
   final TextEditingController filterController = TextEditingController();
   final FocusNode filterFocus = FocusNode(debugLabel: 'filter');
+  final Prefs prefs = Prefs();
+  late final Editors editors = Editors(prefs: prefs);
+  late final IgnorePaneState ignorePane = IgnorePaneState(widget.repo);
+  String? editorCommand;
   Mode mode = Mode.changes;
 
   @override
   void initState() {
     super.initState();
-    changes.load();
+    changes.addListener(syncIgnoreFocus);
+    loadEverything();
+    prefs.load().then((_) {
+      if (mounted) setState(() => editorCommand = prefs.editorCommand);
+    });
   }
 
   @override
   void dispose() {
+    changes.removeListener(syncIgnoreFocus);
+    ignorePane.dispose();
     changes.dispose();
     commitController.dispose();
     commitFocus.dispose();
@@ -198,6 +213,69 @@ class ShellState extends State<Shell> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
+  /// The first load touches git twice: the status and the ignore files, then the
+  /// highlight for whichever row ends up focused.
+  Future<void> loadEverything() async {
+    await changes.load();
+    await ignorePane.load();
+    syncIgnoreFocus();
+  }
+
+  /// Keep the ignore pane's highlight on the focused row.
+  void syncIgnoreFocus() {
+    final path = changes.selected?.path;
+    if (path == null) return;
+    ignorePane.focusPath(path);
+  }
+
+  Future<void> chooseEditor(String? command) async {
+    await prefs.setEditorCommand(command);
+    if (mounted) setState(() => editorCommand = command);
+  }
+
+  /// The Settings "Test" button: open the plan from the repo root.
+  Future<void> openTestFile(String file) async {
+    try {
+      await editors.open(file: '${widget.repo.path}/$file');
+    } on EditorException catch (error) {
+      say(error.message);
+    }
+  }
+
+  /// "Open in editor" in the ignore pane.
+  Future<void> openSelectedIgnore() async {
+    final file = ignorePane.selected;
+    if (file == null) {
+      say('no ignore file selected');
+      return;
+    }
+    try {
+      await editors.open(file: '${widget.repo.path}/${file.path}');
+    } on EditorException catch (error) {
+      say(error.message);
+    }
+  }
+
+  /// "New here": a `.gitignore` in the focused file's own folder.
+  Future<void> newIgnoreHere() async {
+    final row = changes.selected;
+    if (row == null) {
+      say('nothing selected');
+      return;
+    }
+    final relative = row.folder.isEmpty ? '.gitignore' : '${row.folder}/.gitignore';
+    try {
+      await widget.repo.createIgnoreFile('${widget.repo.path}/$relative');
+      await ignorePane.load();
+      ignorePane.select(relative);
+      await ignorePane.focusPath(row.path);
+      await changes.load();
+      say('created $relative');
+    } on Exception catch (error) {
+      say('could not create $relative: $error');
+    }
+  }
+
   static const _altDigits = {
     Mode.changes: LogicalKeyboardKey.digit1,
     Mode.settings: LogicalKeyboardKey.digit2,
@@ -211,12 +289,15 @@ class ShellState extends State<Shell> {
       autofocus: true,
       onKeyEvent: onKey,
       child: Scaffold(
-        body: Row(
-          children: [
-            ModeRail(current: mode, onPick: show),
-            const VerticalDivider(width: 1),
-            Expanded(child: _body()),
-          ],
+        body: DebugBar(
+          roles: appFocusRoles,
+          child: Row(
+            children: [
+              ModeRail(current: mode, onPick: show),
+              const VerticalDivider(width: 1),
+              Expanded(child: _body()),
+            ],
+          ),
         ),
       ),
     );
@@ -232,8 +313,16 @@ class ShellState extends State<Shell> {
             onIgnore: ignoreSelectedRow,
             filterController: filterController,
             filterFocus: filterFocus,
+            ignoreState: ignorePane,
+            onOpenIgnore: openSelectedIgnore,
+            onNewIgnore: newIgnoreHere,
           ),
-          const SettingsPlaceholder(),
+          SettingsView(
+            detect: editors.detect,
+            chosenCommand: editorCommand ?? '',
+            onChoose: chooseEditor,
+            onTest: openTestFile,
+          ),
           const HelpView(),
         ],
       );
@@ -289,11 +378,4 @@ class _RailButton extends StatelessWidget {
   }
 }
 
-class SettingsPlaceholder extends StatelessWidget {
-  const SettingsPlaceholder({super.key});
 
-  @override
-  Widget build(BuildContext context) => const Center(
-        child: Text('Settings: the editor choice arrives with the editor feature.'),
-      );
-}

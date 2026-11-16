@@ -74,4 +74,9 @@ class FakeRepo implements GitRepo {
     ];
     return IgnoreAppend.added;
   }
+
+  @override
+  Future<void> createIgnoreFile(String absolutePath) async {
+    files.putIfAbsent(absolutePath, () => '# Glustered\n');
+  }
 }

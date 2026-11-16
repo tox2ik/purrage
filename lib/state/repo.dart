@@ -155,8 +155,7 @@ class Repo implements GitRepo {
   /// Append one rule to an ignore file, keeping its line endings and leaving one
   /// blank line before the new rule. A rule already present is left alone.
   @override
-  Future<IgnoreAppend> appendIgnoreLine(String absolutePath, String pattern) async {
-    final file = File(absolutePath);
+  Future<IgnoreAppend> appendIgnoreLine(String absolutePath, String pattern) async {    final file = File(absolutePath);
     final existing = await readTextFile(absolutePath);
     final present = existing
         .split(RegExp(r'\r?\n'))
@@ -178,6 +177,15 @@ class Repo implements GitRepo {
     await file.parent.create(recursive: true);
     await file.writeAsString(buffer.toString());
     return IgnoreAppend.added;
+  }
+
+  /// Create an ignore file that is not there yet, with the Glustered header.
+  @override
+  Future<void> createIgnoreFile(String absolutePath) async {
+    final file = File(absolutePath);
+    if (await file.exists()) return;
+    await file.parent.create(recursive: true);
+    await file.writeAsString('# Glustered\n');
   }
 }
 
