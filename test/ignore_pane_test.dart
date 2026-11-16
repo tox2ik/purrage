@@ -173,10 +173,10 @@ void main() {
       return state;
     }
 
-    testWidgets('the rail names root and the nested folder', (tester) async {
+    testWidgets('the rail names .gitignore and the nested folder', (tester) async {
       await pumpPane(tester, fixture());
 
-      expect(find.text('root'), findsOneWidget);
+      expect(find.text('.gitignore'), findsWidgets);
       expect(find.text('lib/generated'), findsOneWidget);
       expect(find.text('build/'), findsOneWidget);
     });

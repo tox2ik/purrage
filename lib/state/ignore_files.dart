@@ -24,7 +24,7 @@ class IgnoreFile {
 
   /// A short rail label: `root` for the root file, the folder for a nested one.
   String get label {
-    if (root) return 'root';
+    if (root) return '.gitignore';
     const suffix = '/.gitignore';
     return path.endsWith(suffix) ? path.substring(0, path.length - suffix.length) : path;
   }
