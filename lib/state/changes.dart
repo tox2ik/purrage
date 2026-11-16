@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import 'git_repo.dart';
 import 'ignore_rules.dart';
-import 'repo.dart';
 import 'status.dart';
 
 /// The state of the Changes mode: what git says, which rows are selected, the
@@ -16,7 +16,7 @@ import 'status.dart';
 class Changes extends ChangeNotifier {
   Changes(this.repo);
 
-  final Repo repo;
+  final GitRepo repo;
 
   List<StatusRow> _rows = const [];
   List<StatusRow> _visible = const [];

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../state/changes.dart';
-import '../state/repo.dart';
+import '../state/git_repo.dart';
 import 'changes_view.dart';
 import 'help_view.dart';
 import 'ignore_dialog.dart';
@@ -26,16 +26,19 @@ extension on Mode {
 
 /// The window shell: the mode rail, the shown mode, and every app-wide key.
 class Shell extends StatefulWidget {
-  const Shell({super.key, required this.repo});
+  const Shell({super.key, required this.repo, this.seeded});
 
-  final Repo repo;
+  final GitRepo repo;
+
+  /// A prepared state, for tests: the fake repo path never touches git.
+  final Changes? seeded;
 
   @override
   State<Shell> createState() => ShellState();
 }
 
 class ShellState extends State<Shell> {
-  late final Changes changes = Changes(widget.repo);
+  late final Changes changes = widget.seeded ?? Changes(widget.repo);
   final FocusNode shellFocus = FocusNode(debugLabel: 'shell');
   final TextEditingController commitController = TextEditingController();
   final FocusNode commitFocus = FocusNode(debugLabel: 'commit message');

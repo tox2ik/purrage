@@ -3,17 +3,8 @@ import 'dart:io';
 
 import 'package:git/git.dart';
 
+import 'git_repo.dart';
 import 'status.dart';
-
-/// A failure worth showing to the user, with git's own words kept.
-class GitException implements Exception {
-  GitException(this.message);
-
-  final String message;
-
-  @override
-  String toString() => message;
-}
 
 /// The one door to git. Everything shelling out happens here.
 ///
@@ -22,12 +13,13 @@ class GitException implements Exception {
 /// package decodes with the system encoding, which mangles non-ASCII paths, so
 /// this class decodes it as UTF-8 itself. That is the only place the app starts
 /// a git process without the package.
-class Repo {
+class Repo implements GitRepo {
   Repo._(this.dir);
 
   final GitDir dir;
 
   /// Absolute path of the working tree root, with forward slashes.
+  @override
   String get path => dir.path;
 
   static Future<Repo> open(String path) async {
@@ -50,6 +42,7 @@ class Repo {
     return rows.isEmpty;
   }
 
+  @override
   Future<List<StatusRow>> status() async {
     final result = await Process.run(
       'git',
@@ -72,22 +65,26 @@ class Repo {
   }
 
   /// Stage a whole file, or a deletion when the file is gone.
+  @override
   Future<void> track(Iterable<String> paths) async {
     if (paths.isEmpty) return;
     await _git(['add', '--', ...paths]);
   }
 
   /// Stop tracking a path but leave it on disk.
+  @override
   Future<void> untrack(String path) async {
     await _git(['rm', '--cached', '--', path]);
   }
 
   /// Commit the index with one summary line.
+  @override
   Future<void> commit(String summary) async {
     await _git(['commit', '-m', summary]);
   }
 
   /// The rule that ignores [path], if any: `null` when nothing matches.
+  @override
   Future<IgnoreMatch?> checkIgnore(String path) async {
     final result = await _git(
       ['check-ignore', '-v', '--', path],
@@ -98,6 +95,7 @@ class Repo {
   }
 
   /// Paths inside the repository, for the `.gitignore` list.
+  @override
   Future<List<String>> gitignoreFiles() async {
     final result = await _git([
       'ls-files',
@@ -117,6 +115,7 @@ class Repo {
 
   /// `.git/info/exclude` for this repository, resolved through git so worktrees
   /// and submodules land on the right file.
+  @override
   Future<String> localExcludePath() async {
     final result = await _git(['rev-parse', '--git-path', 'info/exclude']);
     var out = (result.stdout as String).trim();
@@ -128,6 +127,7 @@ class Repo {
   }
 
   /// The global ignore file: `core.excludesFile`, else `~/.config/git/ignore`.
+  @override
   Future<String> globalIgnorePath() async {
     final result = await _git(['config', '--get', 'core.excludesFile'], throwOnError: false);
     final configured = (result.stdout as String).trim();
@@ -145,6 +145,7 @@ class Repo {
   }
 
   /// Text of an ignore file, or an empty string when it does not exist yet.
+  @override
   Future<String> readTextFile(String absolutePath) async {
     final file = File(absolutePath);
     if (!await file.exists()) return '';
@@ -153,6 +154,7 @@ class Repo {
 
   /// Append one rule to an ignore file, keeping its line endings and leaving one
   /// blank line before the new rule. A rule already present is left alone.
+  @override
   Future<IgnoreAppend> appendIgnoreLine(String absolutePath, String pattern) async {
     final file = File(absolutePath);
     final existing = await readTextFile(absolutePath);
@@ -179,38 +181,3 @@ class Repo {
   }
 }
 
-/// What appending a rule did.
-enum IgnoreAppend { added, duplicate }
-
-/// One line of `git check-ignore -v`: the file, the line, and the pattern that
-/// decided it.
-class IgnoreMatch {
-  const IgnoreMatch({
-    required this.source,
-    required this.line,
-    required this.pattern,
-    required this.path,
-  });
-
-  final String source;
-  final int line;
-  final String pattern;
-  final String path;
-
-  /// `<source>:<line>:<pattern>\t<path>`
-  static IgnoreMatch? parse(String raw) {
-    if (raw.isEmpty) return null;
-    final tab = raw.indexOf('\t');
-    final head = tab < 0 ? raw : raw.substring(0, tab);
-    final path = tab < 0 ? '' : raw.substring(tab + 1);
-    final first = head.indexOf(':');
-    final second = first < 0 ? -1 : head.indexOf(':', first + 1);
-    if (first < 0 || second < 0) return null;
-    return IgnoreMatch(
-      source: head.substring(0, first),
-      line: int.tryParse(head.substring(first + 1, second)) ?? 0,
-      pattern: head.substring(second + 1),
-      path: path,
-    );
-  }
-}

@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:glustered/state/git_repo.dart';
 import 'package:glustered/state/repo.dart';
 import 'package:glustered/state/status.dart';
 
