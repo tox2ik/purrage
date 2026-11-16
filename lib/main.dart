@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'state/repo.dart';
 import 'ui/shell.dart';
+import 'ui/theme.dart';
 
 void main(List<String> args) {
   // `purrage [directory]`; with no argument, the folder it was started in.
@@ -30,11 +31,7 @@ class _PurrageAppState extends State<PurrageApp> {
     return MaterialApp(
       title: 'Purrage',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorSchemeSeed: const Color(0xFF4C6EF5),
-        useMaterial3: true,
-        brightness: Brightness.dark,
-      ),
+      theme: buildTheme(),
       home: FutureBuilder<Repo>(
         future: repo,
         builder: (context, snapshot) {

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -55,13 +57,15 @@ class ShellState extends State<Shell> {
   late final Editors editors = Editors(prefs: prefs);
   late final IgnorePaneState ignorePane = IgnorePaneState(widget.repo);
   final Notices notices = Notices();
+  /// The ignore pane's highlight asks git, so it waits for the cursor to settle.
+  Timer? ignoreProbe;
   String? editorCommand;
   Mode mode = Mode.changes;
 
   @override
   void initState() {
     super.initState();
-    changes.addListener(syncIgnoreFocus);
+    changes.addListener(onChangesChanged);
     loadEverything();
     prefs.load().then((_) {
       if (mounted) setState(() => editorCommand = prefs.editorCommand);
@@ -70,7 +74,8 @@ class ShellState extends State<Shell> {
 
   @override
   void dispose() {
-    changes.removeListener(syncIgnoreFocus);
+    changes.removeListener(onChangesChanged);
+    ignoreProbe?.cancel();
     ignorePane.dispose();
     notices.dispose();
     changes.dispose();
@@ -271,6 +276,14 @@ class ShellState extends State<Shell> {
     syncIgnoreFocus();
   }
 
+  /// A move redraws the list; the ignore pane's git check-ignore runs only
+  /// once the cursor has been still for a moment, so holding a key never waits
+  /// on a subprocess.
+  void onChangesChanged() {
+    ignoreProbe?.cancel();
+    ignoreProbe = Timer(const Duration(milliseconds: 250), syncIgnoreFocus);
+  }
+
   /// Keep the ignore pane's highlight on the focused row.
   void syncIgnoreFocus() {
     final path = changes.selected?.path;
@@ -429,10 +442,14 @@ class _RailButton extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           child: Container(
-            width: 56,
-            height: 56,
+            width: 44,
+            height: 44,
             color: active ? scheme.secondaryContainer : null,
-            child: Icon(mode.icon, color: active ? scheme.onSecondaryContainer : null),
+            child: Icon(
+              mode.icon,
+              size: 17,
+              color: active ? scheme.primary : scheme.onSurfaceVariant,
+            ),
           ),
         ),
       ),

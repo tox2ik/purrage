@@ -97,6 +97,7 @@ class IgnorePaneState extends ChangeNotifier {
 
   /// Explain [repoRelativePath] against the ignore files.
   Future<void> focusPath(String repoRelativePath) async {
+    if (_focusedPath == repoRelativePath && _match != null) return;
     _focusedPath = repoRelativePath;
     try {
       _match = await repo.checkIgnore(repoRelativePath);

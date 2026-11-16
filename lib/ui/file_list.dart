@@ -51,10 +51,18 @@ class _FileListState extends State<FileList> {
   /// Keep the focused row on screen after a move.
   void _reveal() {
     final index = widget.changes.index;
-    final key = keys[index];
-    final context = key?.currentContext;
-    if (context == null) return;
-    Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 120));
+    final target = keys[index]?.currentContext;
+    if (target == null) return;
+    final rowBox = target.findRenderObject();
+    final listBox = scroll.position.context.storageContext.findRenderObject();
+    if (rowBox is RenderBox && listBox is RenderBox && rowBox.hasSize && listBox.hasSize) {
+      final offset = rowBox.localToGlobal(Offset.zero, ancestor: listBox);
+      final bottom = offset.dy + rowBox.size.height;
+      // Already in view: do not scroll. Centring every move is what made the
+      // list feel like it was dragging behind the cursor.
+      if (offset.dy >= 0 && bottom <= listBox.size.height) return;
+    }
+    Scrollable.ensureVisible(target, alignment: 0.5, duration: const Duration(milliseconds: 90));
   }
 
   @override
@@ -83,36 +91,16 @@ class _FileListState extends State<FileList> {
         ],
       );
     }
-    final children = <Widget>[];
+    // A flat list of headers and rows, built lazily: several hundred paths must
+    // not rebuild every tile for one cursor move.
+    final items = <Object>[];
     var flat = 0;
     for (final section in Section.values) {
       final rows = changes.section(section);
       if (rows.isEmpty) continue;
-      children.add(SectionHeader(section: section, count: rows.length));
+      items.add(SectionHeader(section: section, count: rows.length));
       for (final row in rows) {
-        final index = flat++;
-        keys[index] = GlobalKey();
-        children.add(RowTile(
-          key: keys[index],
-          row: row,
-          focused: index == changes.index,
-          chosen: changes.isSelected(row),
-          onTap: (ctrl, shift) => changes.click(index, ctrl: ctrl, shift: shift),
-          onTrack: () => changes.trackSelected(),
-          onUntrack: () => changes.untrackSelected(),
-          onIgnore: () {
-            if (!changes.isSelected(row)) changes.click(index);
-            widget.onIgnore();
-          },
-          onQuickIgnore: () {
-            if (!changes.isSelected(row)) changes.click(index);
-            widget.onQuickIgnore();
-          },
-          onOpen: () {
-            changes.click(index);
-            widget.onOpen();
-          },
-        ));
+        items.add(RowEntry(row: row, index: flat++));
       }
     }
     return Column(
@@ -121,10 +109,43 @@ class _FileListState extends State<FileList> {
         Expanded(
           child: Listener(
             onPointerSignal: _wheel,
-            child: ListView(controller: scroll, children: children),
+            child: ListView.builder(
+              controller: scroll,
+              itemCount: items.length,
+              itemBuilder: (context, at) => _item(context, items[at], changes),
+            ),
           ),
         ),
       ],
+    );
+  }
+
+  Widget _item(BuildContext context, Object item, Changes changes) {
+    if (item is SectionHeader) return item;
+    final entry = item as RowEntry;
+    final index = entry.index;
+    final row = entry.row;
+    keys[index] ??= GlobalKey();
+    return RowTile(
+      key: keys[index],
+      row: row,
+      focused: index == changes.index,
+      chosen: changes.isSelected(row),
+      onTap: (ctrl, shift) => changes.click(index, ctrl: ctrl, shift: shift),
+      onTrack: () => changes.trackSelected(),
+      onUntrack: () => changes.untrackSelected(),
+      onIgnore: () {
+        if (!changes.isSelected(row)) changes.click(index);
+        widget.onIgnore();
+      },
+      onQuickIgnore: () {
+        if (!changes.isSelected(row)) changes.click(index);
+        widget.onQuickIgnore();
+      },
+      onOpen: () {
+        changes.click(index);
+        widget.onOpen();
+      },
     );
   }
 
@@ -198,11 +219,11 @@ class RowTile extends StatelessWidget {
                 ),
               ),
             ),
-            padding: const EdgeInsets.fromLTRB(9, 6, 12, 6),
+            padding: const EdgeInsets.fromLTRB(9, 2, 8, 2),
             child: Row(
               children: [
                 _Badge(text: _badge, color: chosen ? scheme.primary : scheme.outline),
-                const SizedBox(width: 8),
+                const SizedBox(width: 7),
                 Expanded(child: _name(style, scheme, chosen)),
                 if (row.isStaged)
                   _Action(icon: Icons.remove_circle_outline, tooltip: 'Untrack', onTap: onUntrack)
@@ -232,7 +253,7 @@ class RowTile extends StatelessWidget {
               textAlign: TextAlign.right,
               overflow: TextOverflow.ellipsis,
               maxLines: 1,
-              style: style?.copyWith(color: scheme.outline, fontFamily: 'monospace', fontSize: 12),
+              style: style?.copyWith(color: scheme.onSurfaceVariant, fontFamily: 'monospace', fontSize: 11.5),
             ),
           ),
           const SizedBox(width: 6),
@@ -275,8 +296,8 @@ class _Badge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SizedBox(
-        width: 14,
-        child: Text(text, style: TextStyle(fontFamily: 'monospace', color: color)),
+        width: 12,
+        child: Text(text, style: TextStyle(fontFamily: 'monospace', fontSize: 10.5, color: color)),
       );
 }
 
@@ -293,10 +314,21 @@ class _Action extends StatelessWidget {
         child: MouseRegion(
           cursor: SystemMouseCursors.click,
           child: IconButton(
-            icon: Icon(icon, size: 18),
-            onPressed: onTap,
+            icon: Icon(icon, size: 15),
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
             visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints.tightFor(width: 24, height: 22),
+            onPressed: onTap,
           ),
         ),
       );
+}
+
+/// One row in the flat list the builder walks.
+class RowEntry {
+  const RowEntry({required this.row, required this.index});
+
+  final StatusRow row;
+  final int index;
 }
