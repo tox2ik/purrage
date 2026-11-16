@@ -1,7 +1,7 @@
 SHELL := pwsh.exe
 .SHELLFLAGS := -NoProfile -NoLogo -Command
 .DEFAULT_GOAL := help
-.PHONY: run live test analyze format where help
+.PHONY: run live build test analyze format where help
 
 # --- the Flutter SDK -------------------------------------------------------
 # Neovim and other tools start make with a PATH that may not have Flutter on it,
@@ -16,6 +16,9 @@ FLUTTER_PATHS := \
 
 FLUTTER_FOUND := $(firstword $(wildcard $(FLUTTER_PATHS)))
 
+# The app takes the folder to manage as its first argument; `live` passes home.
+HOME_ARG := $(subst \,/,$(USERPROFILE))
+
 ifeq ($(strip $(FLUTTER_FOUND)),)
 FLUTTER := flutter
 DART := dart
@@ -29,8 +32,11 @@ endif
 run: ## run the app against the current folder
 	& "$(FLUTTER)" run -d windows
 
-live: ## run the app, everything also written to out/live.log
-	New-Item -ItemType Directory -Force out | Out-Null; & "$(FLUTTER)" run -d windows 2>&1 | Tee-Object -FilePath out/live.log
+live: ## run the app on the home folder, everything also in out/live.log
+	New-Item -ItemType Directory -Force out | Out-Null; & "$(FLUTTER)" run -d windows -a "$(HOME_ARG)" 2>&1 | Tee-Object -FilePath out/live.log
+
+build: ## release build of the Windows app
+	& "$(FLUTTER)" build windows
 
 ##@ checks
 

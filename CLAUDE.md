@@ -11,8 +11,10 @@ without widgets). Project management lives here too: `backlog/` (Backlog.md task
 
 `make help` lists the targets (pwsh, Windows):
 
-- `make run`: `flutter run -d windows`
-- `make live`: the same, with everything written to `out/live.log` (a new file per run)
+- `make run`: `flutter run -d windows` against the folder it was started in
+- `make live`: the same, on your home folder (`-a "$(USERPROFILE)"`, the app's first argument),
+  with everything written to `out/live.log` (a new file per run)
+- `make build`: release build, `build\windows\x64\runner\Release\glustered.exe`
 - `make test`: the whole suite, one file at a time
 - `make analyze`: `flutter analyze`
 - `make format`: `dart format lib test`
