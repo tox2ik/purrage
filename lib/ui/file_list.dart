@@ -14,6 +14,7 @@ class FileList extends StatefulWidget {
     super.key,
     required this.changes,
     required this.onIgnore,
+    required this.onQuickIgnore,
     required this.onOpen,
     required this.filterController,
     required this.filterFocus,
@@ -21,6 +22,7 @@ class FileList extends StatefulWidget {
 
   final Changes changes;
   final VoidCallback onIgnore;
+  final VoidCallback onQuickIgnore;
   final VoidCallback onOpen;
   final TextEditingController filterController;
   final FocusNode filterFocus;
@@ -102,6 +104,10 @@ class _FileListState extends State<FileList> {
             if (!changes.isSelected(row)) changes.click(index);
             widget.onIgnore();
           },
+          onQuickIgnore: () {
+            if (!changes.isSelected(row)) changes.click(index);
+            widget.onQuickIgnore();
+          },
           onOpen: () {
             changes.click(index);
             widget.onOpen();
@@ -151,6 +157,7 @@ class RowTile extends StatelessWidget {
     required this.onTrack,
     required this.onUntrack,
     required this.onIgnore,
+    required this.onQuickIgnore,
     required this.onOpen,
   });
 
@@ -161,6 +168,7 @@ class RowTile extends StatelessWidget {
   final VoidCallback onTrack;
   final VoidCallback onUntrack;
   final VoidCallback onIgnore;
+  final VoidCallback onQuickIgnore;
   final VoidCallback onOpen;
 
   @override
@@ -200,7 +208,11 @@ class RowTile extends StatelessWidget {
                   _Action(icon: Icons.remove_circle_outline, tooltip: 'Untrack', onTap: onUntrack)
                 else if (!row.isConflict)
                   _Action(icon: Icons.add_circle_outline, tooltip: 'Track', onTap: onTrack),
-                _Action(icon: Icons.block, tooltip: 'Ignore', onTap: onIgnore),
+                _Action(
+                  icon: Icons.block,
+                  tooltip: 'Ignore: add the literal path to the root .gitignore',
+                  onTap: onQuickIgnore,
+                ),
               ],
             ),
           ),

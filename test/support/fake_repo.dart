@@ -49,8 +49,6 @@ class FakeRepo implements GitRepo {
     rows = const [];
   }
 
-  @override
-  Future<bool> mergeInProgress() async => false;
 
   @override
   Future<IgnoreMatch?> checkIgnore(String path) async => null;

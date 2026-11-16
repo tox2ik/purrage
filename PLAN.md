@@ -45,8 +45,11 @@ and the code disagree, fix one of them deliberately.
   `DD AU UD UA DU AA UU` go to Conflicts with a readable label.
 - Untracked **directories** are listed as a single row when git reports them that way
   (`--untracked-files=all` avoids most of it); a row that is a directory shows a trailing `/`.
-- Refreshes: on window focus, after every action, and on a 2 s timer only while the app is
-  focused. `GitDir.isWorkingTreeClean()` is the cheap gate before a full parse.
+- Refreshes: **only after an action** (`track`, `untrack`, `ignore`, `commit`) and on `r`. There is
+  no timer: a periodic `git status` is what made the app feel sluggish, and every action already
+  ends with a quiet refresh. Nothing is redrawn when the new list equals the old one.
+- Actions are **optimistic**: the rows move (or leave) at once, git runs behind them, and a failure
+  puts the previous list back and raises a notice. No click waits on a subprocess.
 
 ## Actions
 
@@ -137,7 +140,8 @@ The ignore pane becomes a list of `.gitignore` files, not one file:
   plain wheel scrolls.
 - A row reads folder first, then name, in two fixed shares of the row, so names line up under each
   other whatever the folder depths are.
-- Row-end buttons appear on hover: track, ignore, open. File rows use the pointer cursor; there
+- Row-end buttons appear on hover: track, ignore (the literal path, no dialog), open. Right click
+  opens the ignore dialog instead. File rows use the pointer cursor; there
   is no `SelectionArea` in the list.
 
 ## Editor detection and Settings

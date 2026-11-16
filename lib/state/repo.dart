@@ -83,16 +83,6 @@ class Repo implements GitRepo {
     await _git(['commit', '-m', summary]);
   }
 
-  @override
-  Future<bool> mergeInProgress() async {
-    final result = await _git(['rev-parse', '--git-path', 'MERGE_HEAD'], throwOnError: false);
-    final path = (result.stdout as String).trim();
-    if (path.isEmpty) return false;
-    final absolute = path.startsWith('/') || RegExp(r'^[A-Za-z]:').hasMatch(path)
-        ? path
-        : '/';
-    return File(absolute).exists();
-  }
 
   /// The rule that ignores [path], if any: `null` when nothing matches.
   @override

@@ -5,12 +5,14 @@ import '../state/changes.dart';
 import '../state/editors.dart';
 import '../state/git_repo.dart';
 import '../state/ignore_files.dart';
+import '../state/notices.dart';
 import '../state/prefs.dart';
 import 'changes_view.dart';
 import 'debug_bar.dart';
 import 'help_view.dart';
 import 'ignore_dialog.dart';
 import 'nav_keys.dart';
+import 'notice_bar.dart';
 import 'settings_view.dart';
 
 /// The modes the app shows; the rail lists them in this order.
@@ -52,6 +54,7 @@ class ShellState extends State<Shell> {
   final Prefs prefs = Prefs();
   late final Editors editors = Editors(prefs: prefs);
   late final IgnorePaneState ignorePane = IgnorePaneState(widget.repo);
+  final Notices notices = Notices();
   String? editorCommand;
   Mode mode = Mode.changes;
 
@@ -69,6 +72,7 @@ class ShellState extends State<Shell> {
   void dispose() {
     changes.removeListener(syncIgnoreFocus);
     ignorePane.dispose();
+    notices.dispose();
     changes.dispose();
     commitController.dispose();
     commitFocus.dispose();
@@ -177,11 +181,18 @@ class ShellState extends State<Shell> {
     return KeyEventResult.handled;
   }
 
-  /// `space`: stage the highlighted rows. The staged section is the feedback.
-  Future<void> trackSel() => changes.trackSelected();
+  /// `space` / `a`: stage the highlighted rows. The rows move to Staged at once;
+  /// a failure comes back as a notice and the list is put right again.
+  Future<void> trackSel() async {
+    final problem = await changes.trackSelected();
+    if (mounted && problem != null) say(problem);
+  }
 
-  /// `u`: stop tracking the highlighted rows. The list is the feedback.
-  Future<void> untrackSel() => changes.untrackSelected();
+  /// `u`: stop tracking the highlighted rows, at once.
+  Future<void> untrackSel() async {
+    final problem = await changes.untrackSelected();
+    if (mounted && problem != null) say(problem);
+  }
 
   /// `e`: open the focused file in the chosen editor.
   Future<void> openFocusedFile() async {
@@ -245,12 +256,11 @@ class ShellState extends State<Shell> {
     }
   }
 
-  /// The one place a result is reported, so no action ends silently.
+  /// The one place a failure is reported: a notice that stays while the mouse is
+  /// over it. A success says nothing.
   void say(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    notices.show(message);
   }
 
   /// The first load touches git twice: the status and the ignore files, then the
@@ -329,15 +339,25 @@ class ShellState extends State<Shell> {
       autofocus: true,
       onKeyEvent: onKey,
       child: Scaffold(
-        body: DebugBar(
-          roles: appFocusRoles,
-          child: Row(
-            children: [
-              ModeRail(current: mode, onPick: show),
-              const VerticalDivider(width: 1),
-              Expanded(child: _body()),
-            ],
-          ),
+        body: Stack(
+          children: [
+            DebugBar(
+              roles: appFocusRoles,
+              child: Row(
+                children: [
+                  ModeRail(current: mode, onPick: show),
+                  const VerticalDivider(width: 1),
+                  Expanded(child: _body()),
+                ],
+              ),
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 74,
+              child: Center(child: NoticeBar(notices: notices)),
+            ),
+          ],
         ),
       ),
     );
@@ -351,6 +371,7 @@ class ShellState extends State<Shell> {
             commitController: commitController,
             commitFocus: commitFocus,
             onIgnore: ignoreSelectedRow,
+            onQuickIgnore: ignoreQuick,
             onOpen: openFocusedFile,
             filterController: filterController,
             filterFocus: filterFocus,

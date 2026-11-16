@@ -68,8 +68,6 @@ abstract class GitRepo {
   /// Commit the index with one summary line.
   Future<void> commit(String summary);
 
-  /// True while a merge is in progress; a commit must wait for it.
-  Future<bool> mergeInProgress();
 
   /// The rule that ignores [path], if any.
   Future<IgnoreMatch?> checkIgnore(String path);

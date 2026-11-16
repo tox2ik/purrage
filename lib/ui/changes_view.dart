@@ -15,6 +15,7 @@ class ChangesView extends StatelessWidget {
     required this.commitController,
     required this.commitFocus,
     required this.onIgnore,
+    required this.onQuickIgnore,
     required this.onOpen,
     required this.filterController,
     required this.filterFocus,
@@ -27,6 +28,7 @@ class ChangesView extends StatelessWidget {
   final TextEditingController commitController;
   final FocusNode commitFocus;
   final VoidCallback onIgnore;
+  final VoidCallback onQuickIgnore;
   final VoidCallback onOpen;
   final TextEditingController filterController;
   final FocusNode filterFocus;
@@ -48,6 +50,7 @@ class ChangesView extends StatelessWidget {
                   child: FileList(
                     changes: changes,
                     onIgnore: onIgnore,
+                    onQuickIgnore: onQuickIgnore,
                     onOpen: onOpen,
                     filterController: filterController,
                     filterFocus: filterFocus,

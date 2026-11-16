@@ -27,7 +27,6 @@ class Changes extends ChangeNotifier {
   String _filter = '';
   int _index = 0;
   bool _busy = false;
-  bool _merging = false;
   String? _error;
 
   List<StatusRow> get rows => _rows;
@@ -67,8 +66,7 @@ class Changes extends ChangeNotifier {
 
   int get stagedCount => _rows.where((row) => row.section == Section.staged).length;
 
-  /// A merge in progress blocks the commit button: git would refuse anyway.
-  bool get canCommit => stagedCount > 0 && !_busy && !_merging;
+  bool get canCommit => stagedCount > 0 && !_busy;
 
   static String _key(StatusRow row) => '${row.section.index}\u0000${row.path}';
 
@@ -84,7 +82,6 @@ class Changes extends ChangeNotifier {
       _pruneSelection();
       _index = _indexAfterReload(keepPath);
       _selectCursorIfEmpty();
-      _merging = await repo.mergeInProgress();
       _error = null;
     } on GitException catch (error) {
       _error = error.message;
@@ -214,36 +211,58 @@ class Changes extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Stage every selected file, or its deletion when it is gone.
-  Future<void> trackSelected() => _run(() async {
-        final rows = actionRows;
-        final paths = rows.where((row) => !row.isConflict).map((row) => row.path).toList();
-        if (paths.isEmpty) {
-          lastReport = ActionReport(done: 0, skipped: [
-            for (final row in rows) '${row.path}: a conflict offers only ignore and open',
-          ]);
-          return;
-        }
-        await repo.track(paths);
-        lastReport = ActionReport(done: paths.length);
-      });
+  /// Stage the highlighted rows, at once, then let git confirm.
+  ///
+  /// The rows move to Staged before `git add` runs; on a failure the previous
+  /// list comes back and the message says why. That is the whole point of the
+  /// app feeling instant: the click does not wait on a subprocess.
+  Future<String?> trackSelected() async {
+    final rows = actionRows;
+    if (rows.isEmpty) return 'nothing selected';
+    final usable = rows.where((row) => !row.isConflict).toList();
+    if (usable.isEmpty) return 'a conflict offers only ignore and open';
 
-  /// Stop tracking the selected files, leaving them on disk.
-  Future<void> untrackSelected() => _run(() async {
-        final rows = actionRows;
-        final tracked = rows.where((row) => !row.isConflict && row.section != Section.untracked);
-        final skipped = [
-          for (final row in rows)
-            if (row.isConflict || row.section == Section.untracked)
-              '${row.path}: not tracked',
-        ];
-        var done = 0;
-        for (final row in tracked) {
-          await repo.untrack(row.path);
-          done++;
-        }
-        lastReport = ActionReport(done: done, skipped: skipped);
-      });
+    final before = _rows;
+    final paths = usable.map((row) => row.path).toSet();
+    final next = [
+      for (final row in _rows)
+        if (!paths.contains(row.path) || row.section == Section.staged) row,
+      for (final row in usable)
+        if (row.section != Section.staged)
+          StatusRow(section: Section.staged, kind: row.kind, path: row.path, code: row.code),
+    ];
+    _setRows(next);
+
+    try {
+      await repo.track(usable.map((row) => row.path).toList());
+    } on Exception catch (error) {
+      _setRows(before);
+      return 'could not stage: $error';
+    }
+    await refresh();
+    return null;
+  }
+
+  /// Stop tracking the highlighted rows, at once, then let git confirm.
+  Future<String?> untrackSelected() async {
+    final rows = actionRows.where((row) => !row.isConflict && row.section != Section.untracked);
+    if (rows.isEmpty) return 'nothing to stop tracking';
+
+    final before = _rows;
+    final paths = rows.map((row) => row.path).toSet();
+    _setRows([for (final row in _rows) if (!paths.contains(row.path)) row]);
+
+    try {
+      for (final row in rows) {
+        await repo.untrack(row.path);
+      }
+    } on Exception catch (error) {
+      _setRows(before);
+      return 'could not stop tracking: $error';
+    }
+    await refresh();
+    return null;
+  }
 
   /// Commit the index with one summary line.
   Future<bool> commit(String summary) async {
@@ -322,10 +341,10 @@ class Changes extends ChangeNotifier {
   Future<String?> ignoreQuick() =>
       ignoreSelected(scope: IgnoreScope.file, target: rootTarget);
 
-  /// Write an ignore rule for every row the action covers.
+  /// Write an ignore rule for every highlighted row, removing them at once.
   ///
-  /// Returns null when all rules were written, or a sentence listing what was
-  /// skipped and why — a rule that would never match must not be added silently.
+  /// Returns null when every rule was written, or a sentence naming what was
+  /// skipped and why. Rows whose rule failed come back with the next refresh.
   Future<String?> ignoreSelected({
     required IgnoreScope scope,
     required IgnoreTarget target,
@@ -334,7 +353,7 @@ class Changes extends ChangeNotifier {
     final rows = actionRows;
     if (rows.isEmpty) return 'nothing selected';
     final skipped = <String>[];
-    var added = 0;
+    final plans = <_IgnorePlan>[];
     for (final row in rows) {
       final rowTarget = _targetFor(row, target);
       final pattern = IgnoreRules.pattern(
@@ -352,40 +371,79 @@ class Changes extends ChangeNotifier {
         skipped.add('${row.path}: `${existing.pattern}` in $where');
         continue;
       }
-      final IgnoreAppend appended;
-      try {
-        appended = await repo.appendIgnoreLine(rowTarget.path, pattern);
-      } on GitException catch (error) {
-        skipped.add('${row.path}: ${error.message}');
-        continue;
-      } on FileSystemException catch (error) {
-        skipped.add('${row.path}: cannot write ${rowTarget.path} '
-            '(${_osText(error)})');
-        continue;
-      }
-      if (appended == IgnoreAppend.duplicate) {
-        skipped.add('${row.path}: `$pattern` already there');
-        continue;
-      }
-      if (stopTracking) {
-        try {
-          await repo.untrack(row.path);
-        } on GitException catch (error) {
-          skipped.add('${row.path}: ${error.message}');
-        }
-      }
-      added++;
+      plans.add(_IgnorePlan(row: row, target: rowTarget, pattern: pattern));
     }
-    await load();
-    lastReport = ActionReport(
-      done: added,
-      skipped: skipped,
-      note: _shortSource(target.path),
-    );
+
+    if (plans.isEmpty) {
+      return skipped.isEmpty ? 'nothing selected' : skipped.take(3).join('; ');
+    }
+
+    // They leave the list now; git gets the files written right after.
+    final paths = plans.map((plan) => plan.row.path).toSet();
+    _setRows([
+      for (final row in _rows)
+        if (!paths.contains(row.path)) row,
+    ]);
+
+    var added = 0;
+    for (final plan in plans) {
+      try {
+        final appended = await repo.appendIgnoreLine(plan.target.path, plan.pattern);
+        if (appended == IgnoreAppend.duplicate) {
+          skipped.add('${plan.row.path}: `${plan.pattern}` already there');
+          continue;
+        }
+        if (stopTracking) await repo.untrack(plan.row.path);
+        added++;
+      } on GitException catch (error) {
+        skipped.add('${plan.row.path}: ${error.message}');
+      } on FileSystemException catch (error) {
+        skipped.add('${plan.row.path}: cannot write ${plan.target.path} '
+            '(${_osText(error)})');
+      }
+    }
+    await refresh();
+    lastReport = ActionReport(done: added, skipped: skipped, note: _shortSource(target.path));
     if (skipped.isEmpty) return null;
     final head = skipped.take(3).join('; ');
     final more = skipped.length > 3 ? ' (+${skipped.length - 3} more)' : '';
     return 'ignored $added, skipped ${skipped.length}: $head$more';
+  }
+
+  /// Replace the list with [rows], keeping the filter, the cursor and the
+  /// selection coherent, and redraw.
+  void _setRows(List<StatusRow> rows) {
+    _rows = [...rows]..sort(_compare);
+    _applyFilter();
+    _pruneSelection();
+    _index = _visible.isEmpty ? 0 : _index.clamp(0, _visible.length - 1);
+    _selectCursorIfEmpty();
+    notifyListeners();
+  }
+
+  /// Ask git for the truth after an optimistic change, without the busy state
+  /// that makes the UI feel stuck. Nothing is redrawn when nothing moved.
+  Future<void> refresh() async {
+    try {
+      final rows = await repo.status();
+      final sorted = [...rows]..sort(_compare);
+      if (_sameRows(sorted, _rows)) return;
+      _setRows(sorted);
+      _error = null;
+    } on GitException catch (error) {
+      _error = error.message;
+      notifyListeners();
+    }
+  }
+
+  static bool _sameRows(List<StatusRow> a, List<StatusRow> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i].section != b[i].section || a[i].path != b[i].path || a[i].code != b[i].code) {
+        return false;
+      }
+    }
+    return true;
   }
 
   String _shortSource(String path) {
@@ -419,6 +477,15 @@ class Changes extends ChangeNotifier {
     notifyListeners();
     await load();
   }
+}
+
+/// One rule the ignore action is about to write.
+class _IgnorePlan {
+  const _IgnorePlan({required this.row, required this.target, required this.pattern});
+
+  final StatusRow row;
+  final IgnoreTarget target;
+  final String pattern;
 }
 
 /// What one action changed, in the words the UI shows.
