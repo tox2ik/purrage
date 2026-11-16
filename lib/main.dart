@@ -5,8 +5,10 @@ import 'package:flutter/material.dart';
 import 'state/repo.dart';
 import 'ui/shell.dart';
 
-void main() {
-  runApp(GlusteredApp(directory: Directory.current.path));
+void main(List<String> args) {
+  // `glustered [directory]`; with no argument, the folder it was started in.
+  final target = args.isEmpty ? Directory.current.path : args.first;
+  runApp(GlusteredApp(directory: target));
 }
 
 /// Opens the repository in [directory] and shows the shell; when that fails,
