@@ -146,28 +146,53 @@ class ShellState extends State<Shell> {
   /// One key: ignore the focused rows with their literal path in the root
   /// .gitignore.
   Future<void> ignoreQuick() async {
-    final problem = await changes.ignoreQuick();
-    if (problem != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(problem)));
+    try {
+      final problem = await changes.ignoreQuick();
+      if (!mounted) return;
+      say(problem ?? 'ignored ${changes.selectionCount} path(s) in the root .gitignore');
+    } on Exception catch (error) {
+      say('ignore failed: $error');
     }
   }
 
   /// Shift+I: ask how wide the rule is and where it goes, then write it.
+  ///
+  /// Every outcome says something: a silent early return is what makes an ignore
+  /// that did nothing look intentional.
   Future<void> ignoreSelectedRow() async {
     final row = changes.selected;
-    if (row == null) return;
-    final targets = await changes.ignoreTargets();
-    if (!mounted || targets.isEmpty) return;
-    final choice = await IgnoreDialog.show(context, changes: changes, row: row, targets: targets);
-    if (choice == null || !mounted) return;
-    final problem = await changes.ignoreSelected(
-      scope: choice.scope,
-      target: choice.target,
-      stopTracking: choice.stopTracking,
-    );
-    if (problem != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(problem)));
+    if (row == null) {
+      say('nothing selected to ignore');
+      return;
     }
+    try {
+      final targets = await changes.ignoreTargets();
+      if (!mounted) return;
+      if (targets.isEmpty) {
+        say('no ignore file to write to for ${row.path}');
+        return;
+      }
+      final choice = await IgnoreDialog.show(context, changes: changes, row: row, targets: targets);
+      if (choice == null || !mounted) return;
+      final problem = await changes.ignoreSelected(
+        scope: choice.scope,
+        target: choice.target,
+        stopTracking: choice.stopTracking,
+      );
+      if (!mounted) return;
+      final where = choice.target.path;
+      say(problem ?? 'wrote a rule for ${changes.selectionCount} path(s) to $where');
+    } on Exception catch (error) {
+      say('ignore failed: $error');
+    }
+  }
+
+  /// The one place a result is reported, so no action ends silently.
+  void say(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   static const _altDigits = {
