@@ -225,15 +225,6 @@ class RowTile extends StatelessWidget {
                 _Badge(text: _badge, color: chosen ? scheme.primary : scheme.outline),
                 const SizedBox(width: 7),
                 Expanded(child: _name(style, scheme, chosen)),
-                if (row.isStaged)
-                  _Action(icon: Icons.remove_circle_outline, tooltip: 'Untrack', onTap: onUntrack)
-                else if (!row.isConflict)
-                  _Action(icon: Icons.add_circle_outline, tooltip: 'Track', onTap: onTrack),
-                _Action(
-                  icon: Icons.block,
-                  tooltip: 'Ignore: add the literal path to the root .gitignore',
-                  onTap: onQuickIgnore,
-                ),
               ],
             ),
           ),
@@ -257,6 +248,14 @@ class RowTile extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 6),
+          _RowActions(
+            staged: row.isStaged,
+            conflict: row.isConflict,
+            onTrack: onTrack,
+            onUntrack: onUntrack,
+            onIgnore: onQuickIgnore,
+          ),
+          const SizedBox(width: 8),
           Expanded(
             flex: 3,
             child: Text(
@@ -301,28 +300,86 @@ class _Badge extends StatelessWidget {
       );
 }
 
-class _Action extends StatelessWidget {
-  const _Action({required this.icon, required this.tooltip, required this.onTap});
+/// The two row actions, as text: `Add` (or `Untrack`) and `Ignore`, in a fixed
+/// slot between the folder and the name so the names still line up.
+class _RowActions extends StatelessWidget {
+  const _RowActions({
+    required this.staged,
+    required this.conflict,
+    required this.onTrack,
+    required this.onUntrack,
+    required this.onIgnore,
+  });
 
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onTap;
+  final bool staged;
+  final bool conflict;
+  final VoidCallback onTrack;
+  final VoidCallback onUntrack;
+  final VoidCallback onIgnore;
 
   @override
-  Widget build(BuildContext context) => Tooltip(
-        message: tooltip,
-        child: MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: IconButton(
-            icon: Icon(icon, size: 15),
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-            visualDensity: VisualDensity.compact,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints.tightFor(width: 24, height: 22),
-            onPressed: onTap,
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (!conflict)
+          _TextAction(
+            label: staged ? 'Untrack' : 'Add',
+            tooltip: staged ? 'Stop tracking this file' : 'Track this file (git add)',
+            onTap: staged ? onUntrack : onTrack,
+            width: 52,
+          ),
+        const SizedBox(width: 4),
+        _TextAction(
+          label: 'Ignore',
+          tooltip: 'Add the literal path to the root .gitignore',
+          onTap: onIgnore,
+          width: 48,
+        ),
+      ],
+    );
+  }
+}
+
+class _TextAction extends StatelessWidget {
+  const _TextAction({
+    required this.label,
+    required this.tooltip,
+    required this.onTap,
+    required this.width,
+  });
+
+  final String label;
+  final String tooltip;
+  final VoidCallback onTap;
+  final double width;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Tooltip(
+      message: tooltip,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: SizedBox(
+          width: width,
+          height: 20,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(4),
+            child: Center(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 10.5, color: scheme.onSurfaceVariant),
+              ),
+            ),
           ),
         ),
-      );
+      ),
+    );
+  }
 }
 
 /// One row in the flat list the builder walks.

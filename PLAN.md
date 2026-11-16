@@ -141,9 +141,9 @@ The ignore pane becomes a list of `.gitignore` files, not one file:
   plain wheel scrolls.
 - A row reads folder first, then name, in two fixed shares of the row, so names line up under each
   other whatever the folder depths are.
-- Row-end buttons appear on hover: track, ignore (the literal path, no dialog), open. Right click
-  opens the ignore dialog instead. File rows use the pointer cursor; there
-  is no `SelectionArea` in the list.
+- Every row carries two text actions between the folder and the name: **Add** (or **Untrack** when
+  staged) and **Ignore**, each with the pointer cursor and a tooltip. A conflict shows only Ignore.
+  The slot has a fixed width, so the file names stay aligned across rows.
 
 ## Editor detection and Settings
 
