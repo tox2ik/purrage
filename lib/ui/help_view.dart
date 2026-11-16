@@ -15,7 +15,7 @@ const List<KeyHelp> keyTable = [
   KeyHelp('j k Up Down (W S)', 'move the cursor'),
   KeyHelp('Shift+Up / Shift+Down', 'extend the highlight from the anchor'),
   KeyHelp('Ctrl+Enter', 'highlight or un-highlight the cursor row'),
-  KeyHelp('space', 'track the focused file'),
+  KeyHelp('space / a', 'track (git add) the highlighted files'),
   KeyHelp('u', 'stop tracking, keep on disk'),
   KeyHelp('i', 'ignore: pick scope and which ignore file'),
   KeyHelp('c', 'jump to the commit message'),

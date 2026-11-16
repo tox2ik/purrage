@@ -23,7 +23,7 @@ Future<Changes> openShell(WidgetTester tester, FakeRepo repo) async {
 }
 
 void main() {
-  testWidgets('i writes the literal rule and reports it', (tester) async {
+  testWidgets('i writes the literal rule, with no message about it', (tester) async {
     final repo = FakeRepo([untracked('notes.md')]);
     await openShell(tester, repo);
     expect(find.text('notes.md'), findsOneWidget);
@@ -33,7 +33,7 @@ void main() {
     await tester.pump();
 
     expect(repo.writes.single, 'C:/repo/.gitignore|/notes.md');
-    expect(find.textContaining('ignored'), findsOneWidget);
+    expect(find.textContaining('ignored'), findsNothing);
     expect(find.text('notes.md'), findsNothing);
   });
 
@@ -51,7 +51,7 @@ void main() {
     await tester.pump();
 
     expect(repo.writes.single, 'C:/repo/.gitignore|/notes.md');
-    expect(find.textContaining('ignored 1 file'), findsOneWidget);
+    expect(find.textContaining('ignored'), findsNothing);
   });
 
   testWidgets('a refusal is shown, not swallowed', (tester) async {

@@ -53,8 +53,6 @@ class ShellState extends State<Shell> {
   late final Editors editors = Editors(prefs: prefs);
   late final IgnorePaneState ignorePane = IgnorePaneState(widget.repo);
   String? editorCommand;
-  /// Success messages for ignore stop after three; errors always speak.
-  int ignoreMessagesShown = 0;
   Mode mode = Mode.changes;
 
   @override
@@ -163,6 +161,7 @@ class ShellState extends State<Shell> {
     }
     switch (event.character?.toLowerCase()) {
       case ' ':
+      case 'a':
         trackSel();
       case 'u':
         untrackSel();
@@ -178,21 +177,11 @@ class ShellState extends State<Shell> {
     return KeyEventResult.handled;
   }
 
-  /// `space`: stage the highlighted rows, and say how many.
-  Future<void> trackSel() async {
-    await changes.trackSelected();
-    if (mounted && changes.lastReport != null) {
-      say(changes.lastReport!.message('tracked'));
-    }
-  }
+  /// `space`: stage the highlighted rows. The staged section is the feedback.
+  Future<void> trackSel() => changes.trackSelected();
 
-  /// `u`: stop tracking the highlighted rows, and say how many.
-  Future<void> untrackSel() async {
-    await changes.untrackSelected();
-    if (mounted && changes.lastReport != null) {
-      say(changes.lastReport!.message('stopped tracking'));
-    }
-  }
+  /// `u`: stop tracking the highlighted rows. The list is the feedback.
+  Future<void> untrackSel() => changes.untrackSelected();
 
   /// `e`: open the focused file in the chosen editor.
   Future<void> openFocusedFile() async {
@@ -213,34 +202,22 @@ class ShellState extends State<Shell> {
   }
 
   /// One key: ignore the focused rows with their literal path in the root
-  /// .gitignore.
+  /// .gitignore. The rows leaving the list is the feedback; only a refusal or a
+  /// failure is said out loud.
   Future<void> ignoreQuick() async {
     try {
       final problem = await changes.ignoreQuick();
-      if (!mounted) return;
-      final report = changes.lastReport;
-      if (problem != null) {
-        say(problem);
-      } else if (report != null) {
-        sayOnceAboutIgnoring(report);
-      }
+      if (!mounted || problem == null) return;
+      say(problem);
     } on Exception catch (error) {
       say('ignore failed: $error');
     }
   }
 
-  /// The ignore success line, at most three times per run: repeating it for every
-  /// file turns a confirmation into noise. A refusal is still said every time.
-  void sayOnceAboutIgnoring(ActionReport report) {
-    if (ignoreMessagesShown >= 3) return;
-    ignoreMessagesShown++;
-    say(report.message('ignored'));
-  }
-
   /// Shift+I: ask how wide the rule is and where it goes, then write it.
   ///
-  /// Every outcome says something: a silent early return is what makes an ignore
-  /// that did nothing look intentional.
+  /// A silent early return is what makes an ignore that did nothing look
+  /// intentional, so failures are always said; a success is not.
   Future<void> ignoreSelectedRow() async {
     final row = changes.selected;
     if (row == null) {
@@ -261,13 +238,8 @@ class ShellState extends State<Shell> {
         target: choice.target,
         stopTracking: choice.stopTracking,
       );
-      if (!mounted) return;
-      final report = changes.lastReport;
-      if (problem != null) {
-        say(problem);
-      } else if (report != null) {
-        sayOnceAboutIgnoring(report);
-      }
+      if (!mounted || problem == null) return;
+      say(problem);
     } on Exception catch (error) {
       say('ignore failed: $error');
     }
