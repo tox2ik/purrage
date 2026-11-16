@@ -217,6 +217,7 @@ class RowTile extends StatelessWidget {
             flex: 2,
             child: Text(
               row.folder.isEmpty ? '' : '${row.folder}/',
+              textAlign: TextAlign.right,
               overflow: TextOverflow.ellipsis,
               maxLines: 1,
               style: style?.copyWith(color: scheme.outline, fontFamily: 'monospace', fontSize: 12),
