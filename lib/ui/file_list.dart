@@ -14,12 +14,14 @@ class FileList extends StatefulWidget {
     super.key,
     required this.changes,
     required this.onIgnore,
+    required this.onOpen,
     required this.filterController,
     required this.filterFocus,
   });
 
   final Changes changes;
   final VoidCallback onIgnore;
+  final VoidCallback onOpen;
   final TextEditingController filterController;
   final FocusNode filterFocus;
 
@@ -100,6 +102,10 @@ class _FileListState extends State<FileList> {
             if (!changes.isSelected(row)) changes.click(index);
             widget.onIgnore();
           },
+          onOpen: () {
+            changes.click(index);
+            widget.onOpen();
+          },
         ));
       }
     }
@@ -145,6 +151,7 @@ class RowTile extends StatelessWidget {
     required this.onTrack,
     required this.onUntrack,
     required this.onIgnore,
+    required this.onOpen,
   });
 
   final StatusRow row;
@@ -154,6 +161,7 @@ class RowTile extends StatelessWidget {
   final VoidCallback onTrack;
   final VoidCallback onUntrack;
   final VoidCallback onIgnore;
+  final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -167,6 +175,7 @@ class RowTile extends StatelessWidget {
         child: InkWell(
           onTap: () => onTap(keyboard.isControlPressed, keyboard.isShiftPressed),
           onSecondaryTap: onIgnore,
+          onDoubleTap: onOpen,
           child: Container(
             decoration: BoxDecoration(
               color: chosen

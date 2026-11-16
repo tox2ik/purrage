@@ -335,6 +335,7 @@ class ShellState extends State<Shell> {
             commitController: commitController,
             commitFocus: commitFocus,
             onIgnore: ignoreSelectedRow,
+            onOpen: openFocusedFile,
             filterController: filterController,
             filterFocus: filterFocus,
             ignoreState: ignorePane,

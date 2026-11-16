@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 
 import 'git_repo.dart';
@@ -304,7 +306,17 @@ class Changes extends ChangeNotifier {
         skipped.add('${row.path}: `${existing.pattern}` in $where');
         continue;
       }
-      final appended = await repo.appendIgnoreLine(rowTarget.path, pattern);
+      final IgnoreAppend appended;
+      try {
+        appended = await repo.appendIgnoreLine(rowTarget.path, pattern);
+      } on GitException catch (error) {
+        skipped.add('${row.path}: ${error.message}');
+        continue;
+      } on FileSystemException catch (error) {
+        skipped.add('${row.path}: cannot write ${rowTarget.path} '
+            '(${_osText(error)})');
+        continue;
+      }
       if (appended == IgnoreAppend.duplicate) {
         skipped.add('${row.path}: `$pattern` already there');
         continue;
@@ -329,6 +341,14 @@ class Changes extends ChangeNotifier {
     final repoPath = repo.path.replaceAll(r'\', '/');
     final clean = path.replaceAll(r'\', '/');
     return clean.startsWith('$repoPath/') ? clean.substring(repoPath.length + 1) : clean;
+  }
+
+  /// Windows puts the useful part in `osError` ("Access is denied"), and the
+  /// bare exception only says errno 5.
+  static String _osText(FileSystemException error) {
+    final code = error.osError?.errorCode;
+    final detail = error.osError?.message ?? error.message;
+    return code == null ? detail : '$detail, error $code';
   }
 
   Future<void> _run(Future<void> Function() action) async {
