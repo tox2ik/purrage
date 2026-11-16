@@ -2,7 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:glustered/ui/debug_bar.dart';
+import 'package:purrage/ui/debug_bar.dart';
 
 /// The window the bar is given: a dark theme, a body that can hold a focus
 /// node, and the bar wrapping it, as `shell.dart` will.

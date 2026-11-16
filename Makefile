@@ -33,7 +33,7 @@ run: ## run the app against the current folder
 	& "$(FLUTTER)" run -d windows
 
 live: ## run the app on the home folder, everything also in out/live.log
-	New-Item -ItemType Directory -Force out | Out-Null; $$env:GLUSTERED_BUILD = 'live'; & "$(FLUTTER)" run -d windows -a "$(HOME_ARG)" 2>&1 | Tee-Object -FilePath out/live.log
+	New-Item -ItemType Directory -Force out | Out-Null; $$env:PURRAGE_BUILD = 'live'; & "$(FLUTTER)" run -d windows -a "$(HOME_ARG)" 2>&1 | Tee-Object -FilePath out/live.log
 
 build: ## release build of the Windows app
 	& "$(FLUTTER)" build windows

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:glustered/state/status.dart';
+import 'package:purrage/state/status.dart';
 
 StatusRow row(String path, {Section section = Section.untracked}) =>
     StatusRow(section: section, kind: RowKind.untracked, path: path, code: '??');

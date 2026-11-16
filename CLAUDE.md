@@ -1,4 +1,4 @@
-# Glustered
+# Purrage
 
 Flutter Windows app: `git status` as a list, track or ignore each file, commit. `PLAN.md` is the
 spec; where it and the code disagree, fix one of them deliberately.
@@ -14,7 +14,7 @@ without widgets). Project management lives here too: `backlog/` (Backlog.md task
 - `make run`: `flutter run -d windows` against the folder it was started in
 - `make live`: the same, on your home folder (`-a "$(USERPROFILE)"`, the app's first argument),
   with everything written to `out/live.log` (a new file per run)
-- `make build`: release build, `build\windows\x64\runner\Release\glustered.exe`
+- `make build`: release build, `build\windows\x64\runner\Release\purrage.exe`
 - `make test`: the whole suite, one file at a time
 - `make analyze`: `flutter analyze`
 - `make format`: `dart format lib test`
@@ -41,7 +41,7 @@ Flutter is discovered by the Makefile (`make where` prints the pair it picked): 
 - Widget tests run on a fake clock: `pump(duration)`, no `pumpAndSettle` with a real timer.
 - A test cleans up after itself: temp repos go through the `makeRepo()` helper in
   `test/support/`, which registers cleanup, and they set `core.fsmonitor=false`. After a run the
-  count of `glustered_*` folders in `%TEMP%` is the same as before.
+  count of `purrage_*` folders in `%TEMP%` is the same as before.
 - Parser tests use fixture strings and need no git at all.
 
 ## UI code

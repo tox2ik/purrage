@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:glustered/state/editors.dart';
-import 'package:glustered/state/prefs.dart';
+import 'package:purrage/state/editors.dart';
+import 'package:purrage/state/prefs.dart';
 
 /// A fake machine: `which` answers from [path], `exists` from [files], and the
 /// environment is just a map. No process runs and no file is read unless a test
@@ -113,7 +113,7 @@ void main() {
 
   group('detection order', () {
     test('the saved choice comes first', () async {
-      final dir = await Directory.systemTemp.createTemp('glustered_prefs_');
+      final dir = await Directory.systemTemp.createTemp('purrage_prefs_');
       addTearDown(() => dir.delete(recursive: true));
       final prefs = Prefs(directory: dir.path.replaceAll(r'\', '/'));
       await prefs.setEditorCommand('"C:\\Tools\\mine.exe" {file}');
@@ -241,7 +241,7 @@ void main() {
 
   group('Prefs', () {
     test('a missing file reads as no choice', () async {
-      final dir = await Directory.systemTemp.createTemp('glustered_prefs_');
+      final dir = await Directory.systemTemp.createTemp('purrage_prefs_');
       addTearDown(() => dir.delete(recursive: true));
       final prefs = Prefs(directory: dir.path.replaceAll(r'\', '/'));
       await prefs.load();
@@ -251,7 +251,7 @@ void main() {
     });
 
     test('the editor command round-trips through a pretty file', () async {
-      final dir = await Directory.systemTemp.createTemp('glustered_prefs_');
+      final dir = await Directory.systemTemp.createTemp('purrage_prefs_');
       addTearDown(() => dir.delete(recursive: true));
       final path = dir.path.replaceAll(r'\', '/');
 
@@ -274,7 +274,7 @@ void main() {
     });
 
     test('clearing the choice writes it away', () async {
-      final dir = await Directory.systemTemp.createTemp('glustered_prefs_');
+      final dir = await Directory.systemTemp.createTemp('purrage_prefs_');
       addTearDown(() => dir.delete(recursive: true));
       final path = dir.path.replaceAll(r'\', '/');
 
@@ -289,7 +289,7 @@ void main() {
     });
 
     test('a corrupt file is empty, not fatal', () async {
-      final dir = await Directory.systemTemp.createTemp('glustered_prefs_');
+      final dir = await Directory.systemTemp.createTemp('purrage_prefs_');
       addTearDown(() => dir.delete(recursive: true));
       final prefs = Prefs(directory: dir.path.replaceAll(r'\', '/'));
       await File(prefs.path).writeAsString('{not json');
@@ -299,7 +299,7 @@ void main() {
 
     test('the default folder is under APPDATA', () {
       final folder = Prefs.defaultDirectory();
-      expect(folder.endsWith('/Glustered'), isTrue);
+      expect(folder.endsWith('/Purrage'), isTrue);
       expect(folder, isNot(contains(r'\')));
     });
   });

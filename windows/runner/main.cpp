@@ -5,16 +5,16 @@
 #include "flutter_window.h"
 #include "utils.h"
 
-// The title says which build runs: "Glustered" for a release build; a debug
-// build adds the kind of run, from GLUSTERED_BUILD (`make live` sets "live"),
+// The title says which build runs: "Purrage" for a release build; a debug
+// build adds the kind of run, from PURRAGE_BUILD (`make live` sets "live"),
 // else "dev".
 static std::wstring WindowTitle() {
 #ifdef NDEBUG
-  return L"Glustered";
+  return L"Purrage";
 #else
   wchar_t kind[32];
-  DWORD n = ::GetEnvironmentVariableW(L"GLUSTERED_BUILD", kind, 32);
-  return L"Glustered (" + std::wstring(n > 0 && n < 32 ? kind : L"dev") + L")";
+  DWORD n = ::GetEnvironmentVariableW(L"PURRAGE_BUILD", kind, 32);
+  return L"Purrage (" + std::wstring(n > 0 && n < 32 ? kind : L"dev") + L")";
 #endif
 }
 

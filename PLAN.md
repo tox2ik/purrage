@@ -1,9 +1,9 @@
-# Glustered
+# Purrage
 
 A small Flutter Windows desktop app for one job: look at `git status`, decide per file
 whether to **track** it or **ignore** it, and **commit**. No diffs, no branches, no remotes.
 
-Repo: `~/ws/Glustered`, exe `glustered.exe`, branch `main`. This file is the spec; where it
+Repo: `~/ws/Purrage`, exe `purrage.exe`, branch `main`. This file is the spec; where it
 and the code disagree, fix one of them deliberately.
 
 ## Scope, version 1
@@ -21,7 +21,7 @@ and the code disagree, fix one of them deliberately.
 
 - Platform: **Windows only** for now (`flutter create --platforms=windows`).
 - Git access: the **`git` package** (kevmoo, Dart team) for process plumbing and `GitDir`;
-  Glustered owns only the **porcelain status parser** and the row/section model.
+  Purrage owns only the **porcelain status parser** and the row/section model.
 - Layout: **one file list across the window**, commit bar across the bottom.
 - Keys and mouse: **the Ops contract**, copied (see Keys below).
 - Commit message: **one summary line, nothing else**. No body, no trailer, no template.
@@ -61,7 +61,7 @@ and the code disagree, fix one of them deliberately.
 - **Ignore + stop tracking** for a row that git already tracks: ignore rule plus
   `git rm --cached`, confirm dialog, mirroring GitKraken's two-step.
 - Ignore writes are literal and anchored, escape glob characters (`*?[]!`) in names, skip a
-  pattern already present, append after one blank line with a `# Glustered` comment and keep the
+  pattern already present, append after one blank line with a `# Purrage` comment and keep the
   file's existing line endings and final newline.
 - **Open in editor** (`e` on a row, `E` for `.gitignore`): hands `{file}` to the chosen editor.
 - **Commit** (`c`): enabled only when something is staged and no merge is in progress; runs
@@ -77,7 +77,7 @@ folder and below. The app should prefer the **narrowest file that already covers
    first (it is where the rule belongs, next to the things it affects).
 2. Otherwise offer the repo root `.gitignore`, and a **new `.gitignore` in this file's folder**
    when the folder is a subtree worth its own rules (generated output, build artefacts, vendor
-   dumps). The app creates the file with one `# Glustered` line and then the pattern.
+   dumps). The app creates the file with one `# Purrage` line and then the pattern.
 3. `.git/info/exclude` for rules that must not be committed, and the global ignore for rules that
    apply to every repo, stay available under *More places*.
 
@@ -169,7 +169,7 @@ The ignore pane becomes a list of `.gitignore` files, not one file:
 - `dart_test.yaml`: `concurrency: 2`, `timeout: 55s`.
 - Parsers get unit tests with fixture strings, no git needed.
 - Repo tests build a throwaway repo per test (`makeRepo()` helper), set `core.fsmonitor=false`,
-  and register cleanup so no `glustered_*` folder survives a run.
+  and register cleanup so no `purrage_*` folder survives a run.
 - Widget tests use a fake clock: `pump(duration)`, no `pumpAndSettle` with real timers.
 - `make analyze` clean apart from the known `material.dart` deprecation infos.
 

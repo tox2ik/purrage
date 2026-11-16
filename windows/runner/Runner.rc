@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "no.itagent" "\0"
-            VALUE "FileDescription", "glustered" "\0"
+            VALUE "FileDescription", "purrage" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "glustered" "\0"
+            VALUE "InternalName", "purrage" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 no.itagent. All rights reserved." "\0"
-            VALUE "OriginalFilename", "glustered.exe" "\0"
-            VALUE "ProductName", "glustered" "\0"
+            VALUE "OriginalFilename", "purrage.exe" "\0"
+            VALUE "ProductName", "purrage" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

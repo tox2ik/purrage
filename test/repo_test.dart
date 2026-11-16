@@ -1,9 +1,9 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:glustered/state/git_repo.dart';
-import 'package:glustered/state/repo.dart';
-import 'package:glustered/state/status.dart';
+import 'package:purrage/state/git_repo.dart';
+import 'package:purrage/state/repo.dart';
+import 'package:purrage/state/status.dart';
 
 import 'support/temp_repo.dart';
 
@@ -87,9 +87,9 @@ void main() {
       expect(await repo.appendIgnoreLine(nested, '*.g.dart'), IgnoreAppend.duplicate);
 
       final text = await File(nested).readAsString();
-      expect(text, startsWith('# Glustered\n'));
+      expect(text, startsWith('# Purrage\n'));
       expect(text.split('\n').where((line) => line.isNotEmpty), [
-        '# Glustered',
+        '# Purrage',
         '/cache/',
         '*.g.dart',
       ]);

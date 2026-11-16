@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:glustered/state/git_repo.dart';
-import 'package:glustered/state/ignore_files.dart';
-import 'package:glustered/state/status.dart';
-import 'package:glustered/ui/ignore_pane.dart';
+import 'package:purrage/state/git_repo.dart';
+import 'package:purrage/state/ignore_files.dart';
+import 'package:purrage/state/status.dart';
+import 'package:purrage/ui/ignore_pane.dart';
 
 /// An in-memory repository: no git, no files, no clock.
 class IgnoreFakeRepo implements GitRepo {

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:glustered/state/changes.dart';
-import 'package:glustered/state/status.dart';
-import 'package:glustered/ui/shell.dart';
+import 'package:purrage/state/changes.dart';
+import 'package:purrage/state/status.dart';
+import 'package:purrage/ui/shell.dart';
 
 import 'support/fake_repo.dart';
 

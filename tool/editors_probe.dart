@@ -4,7 +4,7 @@
 // "Open in editor" without starting the app.
 //
 //   dart run tool/editors_probe.dart
-import 'package:glustered/state/editors.dart';
+import 'package:purrage/state/editors.dart';
 
 Future<void> main() async {
   final editors = Editors();

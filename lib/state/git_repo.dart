@@ -89,6 +89,6 @@ abstract class GitRepo {
   /// Append one rule to an ignore file.
   Future<IgnoreAppend> appendIgnoreLine(String absolutePath, String pattern);
 
-  /// Create an empty ignore file with the Glustered header, if it is not there.
+  /// Create an empty ignore file with the Purrage header, if it is not there.
   Future<void> createIgnoreFile(String absolutePath);
 }

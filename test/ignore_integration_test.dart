@@ -1,9 +1,9 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:glustered/state/changes.dart';
-import 'package:glustered/state/ignore_rules.dart';
-import 'package:glustered/state/repo.dart';
+import 'package:purrage/state/changes.dart';
+import 'package:purrage/state/ignore_rules.dart';
+import 'package:purrage/state/repo.dart';
 
 import 'support/temp_repo.dart';
 
@@ -66,7 +66,7 @@ void main() {
     final nestedFile = File('${temp.path}/lib/generated/.gitignore');
     expect(await nestedFile.exists(), isTrue);
     final text = await nestedFile.readAsString();
-    expect(text, startsWith('# Glustered\n'));
+    expect(text, startsWith('# Purrage\n'));
     expect(text, contains('\n/a.g.dart\n'));
     expect(text, isNot(contains('lib/generated/a.g.dart'))); // not the root form
 

@@ -177,7 +177,7 @@ class Repo implements GitRepo {
     final eol = existing.contains('\r\n') ? '\r\n' : '\n';
     final buffer = StringBuffer(existing);
     if (existing.isEmpty) {
-      buffer.write('# Glustered$eol');
+      buffer.write('# Purrage$eol');
     } else if (!existing.endsWith('\n')) {
       buffer.write(eol);
     }
@@ -187,13 +187,13 @@ class Repo implements GitRepo {
     return IgnoreAppend.added;
   }
 
-  /// Create an ignore file that is not there yet, with the Glustered header.
+  /// Create an ignore file that is not there yet, with the Purrage header.
   @override
   Future<void> createIgnoreFile(String absolutePath) async {
     final file = File(absolutePath);
     if (await file.exists()) return;
     await file.parent.create(recursive: true);
-    await writeTextFile(file, '# Glustered\n');
+    await writeTextFile(file, '# Purrage\n');
   }
 
   /// Write [text] to [file], getting past the Windows Hidden attribute.

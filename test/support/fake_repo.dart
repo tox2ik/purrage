@@ -1,5 +1,5 @@
-import 'package:glustered/state/git_repo.dart';
-import 'package:glustered/state/status.dart';
+import 'package:purrage/state/git_repo.dart';
+import 'package:purrage/state/status.dart';
 
 /// A repository that answers from memory, for widget tests: no git, no files, no
 /// real clock. Everything a test asserts about is recorded in [writes].
@@ -80,6 +80,6 @@ class FakeRepo implements GitRepo {
 
   @override
   Future<void> createIgnoreFile(String absolutePath) async {
-    files.putIfAbsent(absolutePath, () => '# Glustered\n');
+    files.putIfAbsent(absolutePath, () => '# Purrage\n');
   }
 }

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:glustered/state/status.dart';
+import 'package:purrage/state/status.dart';
 
 /// Records are NUL-terminated: "XY path" then, for a rename, the old path.
 String z(List<String> records) => records.map((r) => '$r\u0000').join();

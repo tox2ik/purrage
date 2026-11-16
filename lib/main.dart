@@ -6,29 +6,29 @@ import 'state/repo.dart';
 import 'ui/shell.dart';
 
 void main(List<String> args) {
-  // `glustered [directory]`; with no argument, the folder it was started in.
+  // `purrage [directory]`; with no argument, the folder it was started in.
   final target = args.isEmpty ? Directory.current.path : args.first;
-  runApp(GlusteredApp(directory: target));
+  runApp(PurrageApp(directory: target));
 }
 
 /// Opens the repository in [directory] and shows the shell; when that fails,
 /// the error is the whole window, with git's text selectable.
-class GlusteredApp extends StatefulWidget {
-  const GlusteredApp({super.key, required this.directory});
+class PurrageApp extends StatefulWidget {
+  const PurrageApp({super.key, required this.directory});
 
   final String directory;
 
   @override
-  State<GlusteredApp> createState() => _GlusteredAppState();
+  State<PurrageApp> createState() => _PurrageAppState();
 }
 
-class _GlusteredAppState extends State<GlusteredApp> {
+class _PurrageAppState extends State<PurrageApp> {
   late final Future<Repo> repo = Repo.open(widget.directory);
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Glustered',
+      title: 'Purrage',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorSchemeSeed: const Color(0xFF4C6EF5),

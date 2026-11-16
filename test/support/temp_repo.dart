@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// A throwaway repository for one test, deleted when the test ends.
 ///
 /// Everything a test starts or writes goes through here, so a run leaves no
-/// `glustered_*` folder behind.
+/// `purrage_*` folder behind.
 class TempRepo {
   TempRepo._(this.dir);
 
@@ -14,7 +14,7 @@ class TempRepo {
   String get path => dir.path.replaceAll(r'\', '/');
 
   static Future<TempRepo> make({bool withGitignore = true}) async {
-    final dir = await Directory.systemTemp.createTemp('glustered_');
+    final dir = await Directory.systemTemp.createTemp('purrage_');
     final repo = TempRepo._(dir);
     addTearDown(() async {
       if (await dir.exists()) await dir.delete(recursive: true);
@@ -51,13 +51,13 @@ class TempRepo {
   }
 }
 
-/// True when the temp folder still holds `glustered_*` folders, for the
+/// True when the temp folder still holds `purrage_*` folders, for the
 /// cleanup check in CLAUDE.md.
 Future<int> leftoverTempDirs() async {
   var count = 0;
   await for (final entity in Directory.systemTemp.list()) {
     final name = entity.uri.pathSegments.lastWhere((s) => s.isNotEmpty, orElse: () => '');
-    if (name.startsWith('glustered_')) count++;
+    if (name.startsWith('purrage_')) count++;
   }
   return count;
 }

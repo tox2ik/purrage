@@ -1,4 +1,4 @@
-/// The app's own settings, kept out of git: `%APPDATA%/Glustered/prefs.json`.
+/// The app's own settings, kept out of git: `%APPDATA%/Purrage/prefs.json`.
 ///
 /// The file is optional and may be corrupt; a missing or unreadable file reads
 /// as "nothing saved yet" rather than a startup failure. Writes go through a
@@ -29,7 +29,7 @@ class Prefs {
   /// True once a load has completed, so a caller can tell "empty" from "unread".
   bool get isLoaded => _loaded;
 
-  /// `%APPDATA%/Glustered`, or `<home>/Glustered` when APPDATA is unset.
+  /// `%APPDATA%/Purrage`, or `<home>/Purrage` when APPDATA is unset.
   static String defaultDirectory() {
     final appData = Platform.environment['APPDATA']?.trim();
     final home =
@@ -37,7 +37,7 @@ class Prefs {
         Platform.environment['HOME']?.trim() ??
         Directory.current.path;
     final base = (appData == null || appData.isEmpty) ? home : appData;
-    return '$base/Glustered'.replaceAll(r'\', '/');
+    return '$base/Purrage'.replaceAll(r'\', '/');
   }
 
   /// Read the file; a missing, empty or unreadable file leaves the store empty.

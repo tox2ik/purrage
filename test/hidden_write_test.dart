@@ -1,8 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:glustered/state/git_repo.dart';
-import 'package:glustered/state/repo.dart';
+import 'package:purrage/state/git_repo.dart';
+import 'package:purrage/state/repo.dart';
 
 import 'support/temp_repo.dart';
 
@@ -85,6 +85,6 @@ void main() {
     await repo.createIgnoreFile(nested);
     await Process.run('attrib', ['+H', nested]);
     await repo.createIgnoreFile(nested);
-    expect(await File(nested).readAsString(), '# Glustered\n');
+    expect(await File(nested).readAsString(), '# Purrage\n');
   });
 }

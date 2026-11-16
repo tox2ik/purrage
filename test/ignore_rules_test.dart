@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:glustered/state/ignore_rules.dart';
+import 'package:purrage/state/ignore_rules.dart';
 
 void main() {
   group('IgnoreRules.pattern', () {
