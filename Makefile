@@ -8,7 +8,7 @@ run: ## run the app against the current folder
 	flutter run -d windows
 
 live: ## run the app, everything also written to out/live.log
-	New-Item -ItemType Directory -Force out | Out-Null; flutter run -d windows 2>&1 | Tee-Object -FilePath out/live.log
+	New-Item -ItemType Directory -Force out | Out-Null; flutter run -d windows ~ 2>&1 | Tee-Object -FilePath out/live.log
 
 ##@ checks
 

@@ -126,18 +126,30 @@ class RowTile extends StatelessWidget {
     );
   }
 
-  Widget _name(TextStyle? style, ColorScheme scheme) => Text.rich(
-        TextSpan(
-          children: [
-            TextSpan(text: row.name, style: style),
-            if (row.folder.isNotEmpty)
-              TextSpan(
-                text: '  ${row.folder}',
-                style: style?.copyWith(color: scheme.outline),
-              ),
-          ],
-        ),
-        overflow: TextOverflow.ellipsis,
+  /// Folder first, then the name, each in a fixed share of the row, so the file
+  /// names line up under each other whatever the folder depths are.
+  Widget _name(TextStyle? style, ColorScheme scheme) => Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: Text(
+              row.folder.isEmpty ? '' : '${row.folder}/',
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+              style: style?.copyWith(color: scheme.outline, fontFamily: 'monospace', fontSize: 12),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            flex: 3,
+            child: Text(
+              row.name,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+              style: style,
+            ),
+          ),
+        ],
       );
 
   String get _badge => switch (row.kind) {

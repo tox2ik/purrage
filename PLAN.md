@@ -130,6 +130,11 @@ The ignore pane becomes a list of `.gitignore` files, not one file:
   labels, the mode rail.
 - Single click selects a row (list keeps it in view), double click opens the file in the editor,
   right click opens the same menu as `i`.
+- The split between the list and the preview is dragged with the mouse (a grab bar that shows the
+  resize cursor and a tooltip), clamped to 260–820 px and starting at 460. The list is wide enough
+  for ordinary paths; a path longer than the pane is cut with an ellipsis, never widened for.
+- A row reads folder first, then name, in two fixed shares of the row, so names line up under each
+  other whatever the folder depths are.
 - Row-end buttons appear on hover: track, ignore, open. File rows use the pointer cursor; there
   is no `SelectionArea` in the list, only in the preview.
 
