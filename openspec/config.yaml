@@ -1,0 +1,10 @@
+schema: spec-driven
+context: |
+  Glustered is a small Flutter Windows app that shows git status, lets each file be tracked or
+  ignored, and commits. The plan is PLAN.md in the repo root. Every item of work is a Backlog.md
+  task in backlog/tasks/; only work that needs a design gets a change here, and proposal.md names
+  its task. tasks.md keeps building (## 1. Build) and trying by hand (## 2. Verify) apart.
+  Finished and dropped changes are in changes/archive/.
+rules:
+  tasks:
+    - Keep build steps and verify steps in separate sections.
