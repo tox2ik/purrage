@@ -138,6 +138,12 @@ class ShellState extends State<Shell> {
 
   KeyEventResult _changesKey(KeyEvent event) {
     final keyboard = HardwareKeyboard.instance;
+    // F5 and Ctrl+R: ask git again and redraw the list, the desktop habit.
+    if (event.logicalKey == LogicalKeyboardKey.f5 ||
+        (keyboard.isControlPressed && event.character?.toLowerCase() == 'r')) {
+      changes.load();
+      return KeyEventResult.handled;
+    }
     if (event.logicalKey == LogicalKeyboardKey.enter && keyboard.isControlPressed) {
       changes.toggleFocused();
       return KeyEventResult.handled;
@@ -149,6 +155,11 @@ class ShellState extends State<Shell> {
       } else {
         changes.move(delta);
       }
+      return KeyEventResult.handled;
+    }
+    // Ctrl+F is the desktop habit for the same field.
+    if (keyboard.isControlPressed && event.character?.toLowerCase() == 'f') {
+      filterFocus.requestFocus();
       return KeyEventResult.handled;
     }
     if (!isPlain(event)) return KeyEventResult.ignored;

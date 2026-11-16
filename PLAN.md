@@ -124,7 +124,8 @@ The ignore pane becomes a list of `.gitignore` files, not one file:
   refusal or a failure is said every time, with the file and the reason.
 
 - Actions: `space` or `a` track (`git add`), `u` untrack, `i` ignore with the literal path, `Shift+I` the ignore
-  dialog, `e` open file, `E` open `.gitignore`, `c` commit, `r` refresh, `/` filter, `Esc` close.
+  dialog, `e` open file, `E` open `.gitignore`, `c` commit, `r` / `F5` / `Ctrl+R` re-read the state,
+  `/` or `Ctrl+F` filter, `Esc` close.
 - Two-key commands go through `KeySequence`; plain keys are ignored while a text field has
   focus; every key is also listed in the Help table.
 
