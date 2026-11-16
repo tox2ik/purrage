@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
+import 'failure.dart';
 import 'git_repo.dart';
 import 'ignore_rules.dart';
 import 'status.dart';
@@ -50,6 +51,9 @@ class Changes extends ChangeNotifier {
 
   /// What the last action did, for the one message the UI shows.
   ActionReport? lastReport;
+
+  /// The last failure, with its origin, code and detail, for the Console mode.
+  ActionFailure? lastFailure;
 
   List<StatusRow> get selectedRows => [
         for (final row in _visible)
@@ -233,11 +237,19 @@ class Changes extends ChangeNotifier {
     ];
     _setRows(next);
 
+    final pathList = usable.map((row) => row.path).toList();
     try {
-      await repo.track(usable.map((row) => row.path).toList());
+      await repo.track(pathList);
     } on Exception catch (error) {
       _setRows(before);
-      return 'could not stage: $error';
+      lastFailure = ActionFailure.fromError(
+        error,
+        origin: 'Changes.trackSelected -> Repo.track -> git add',
+        summary: 'could not stage ${pathList.length} file(s)',
+        params: {'selected': rows.length, 'cwd': repo.path, 'first': pathList.first},
+        command: 'git add -- ${pathList.take(5).join(' ')}',
+      );
+      return lastFailure!.summary;
     }
     await refresh();
     return null;
@@ -258,7 +270,14 @@ class Changes extends ChangeNotifier {
       }
     } on Exception catch (error) {
       _setRows(before);
-      return 'could not stop tracking: $error';
+      lastFailure = ActionFailure.fromError(
+        error,
+        origin: 'Changes.untrackSelected -> Repo.untrack -> git rm --cached',
+        summary: 'could not stop tracking ${rows.length} file(s)',
+        params: {'rows': rows.length, 'cwd': repo.path},
+        command: 'git rm --cached -- ${rows.take(5).map((row) => row.path).join(' ')}',
+      );
+      return lastFailure!.summary;
     }
     await refresh();
     return null;
@@ -268,7 +287,11 @@ class Changes extends ChangeNotifier {
   Future<bool> commit(String summary) async {
     final message = summary.trim();
     if (message.isEmpty || !canCommit) return false;
-    await _run(() => repo.commit(message));
+    await _run(
+      () => repo.commit(message),
+      origin: 'Changes.commit -> Repo.commit -> git commit',
+      command: 'git commit -m <summary>',
+    );
     return _error == null;
   }
 
@@ -407,7 +430,20 @@ class Changes extends ChangeNotifier {
     if (skipped.isEmpty) return null;
     final head = skipped.take(3).join('; ');
     final more = skipped.length > 3 ? ' (+${skipped.length - 3} more)' : '';
-    return 'ignored $added, skipped ${skipped.length}: $head$more';
+    final summary = 'ignored $added, skipped ${skipped.length}: $head$more';
+    lastFailure = ActionFailure.fromSkips(
+      origin: 'Changes.ignoreSelected -> IgnoreRules.pattern -> Repo.appendIgnoreLine',
+      summary: summary,
+      skipped: skipped,
+      params: {
+        'scope': scope.name,
+        'target': _shortSource(target.path),
+        'stopTracking': stopTracking,
+        'rows': rows.length,
+        'written': added,
+      },
+    );
+    return summary;
   }
 
   /// Replace the list with [rows], keeping the filter, the cursor and the
@@ -460,15 +496,25 @@ class Changes extends ChangeNotifier {
     return code == null ? detail : '$detail, error $code';
   }
 
-  Future<void> _run(Future<void> Function() action) async {
+  Future<void> _run(
+    Future<void> Function() action, {
+    required String origin,
+    String? command,
+  }) async {
     if (_busy) return;
     _busy = true;
     _error = null;
     notifyListeners();
     try {
       await action();
-    } on GitException catch (error) {
-      _error = error.message;
+    } on Exception catch (error) {
+      _error = error is GitException ? error.message : error.toString();
+      lastFailure = ActionFailure.fromError(
+        error,
+        origin: origin,
+        params: {'cwd': repo.path},
+        command: command,
+      );
       _busy = false;
       notifyListeners();
       return;

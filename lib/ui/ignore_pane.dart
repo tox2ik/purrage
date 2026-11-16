@@ -119,7 +119,7 @@ class _RailItem extends StatelessWidget {
               style: TextStyle(
                 fontFamily: 'monospace',
                 fontSize: 12,
-                color: selected ? scheme.onSecondaryContainer : scheme.outline,
+                color: selected ? scheme.onSurface : scheme.onSurfaceVariant,
               ),
             ),
           ),
@@ -211,7 +211,7 @@ class _TitleRow extends StatelessWidget {
             line == null ? 'no file matches' : 'line $line',
             overflow: TextOverflow.ellipsis,
             maxLines: 1,
-            style: TextStyle(fontSize: 11, color: scheme.outline),
+            style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
           ),
         ),
       ],
@@ -264,7 +264,7 @@ class _Line extends StatelessWidget {
             child: Text(
               '$number',
               textAlign: TextAlign.right,
-              style: TextStyle(fontFamily: 'monospace', fontSize: 12, color: scheme.outline),
+              style: TextStyle(fontFamily: 'monospace', fontSize: 12, color: scheme.onSurfaceVariant),
             ),
           ),
           const SizedBox(width: 10),

@@ -4,12 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../state/changes.dart';
+import '../state/console.dart';
 import '../state/editors.dart';
+import '../state/failure.dart';
 import '../state/git_repo.dart';
 import '../state/ignore_files.dart';
 import '../state/notices.dart';
 import '../state/prefs.dart';
 import 'changes_view.dart';
+import 'console_view.dart';
 import 'debug_bar.dart';
 import 'help_view.dart';
 import 'ignore_dialog.dart';
@@ -18,17 +21,19 @@ import 'notice_bar.dart';
 import 'settings_view.dart';
 
 /// The modes the app shows; the rail lists them in this order.
-enum Mode { changes, settings, help }
+enum Mode { changes, settings, console, help }
 
 extension on Mode {
   String get label => switch (this) {
         Mode.changes => 'Changes',
         Mode.settings => 'Settings',
+        Mode.console => 'Console',
         Mode.help => 'Help',
       };
   IconData get icon => switch (this) {
         Mode.changes => Icons.description_outlined,
         Mode.settings => Icons.settings_outlined,
+        Mode.console => Icons.terminal,
         Mode.help => Icons.help_outline,
       };
 }
@@ -57,6 +62,7 @@ class ShellState extends State<Shell> {
   late final Editors editors = Editors(prefs: prefs);
   late final IgnorePaneState ignorePane = IgnorePaneState(widget.repo);
   final Notices notices = Notices();
+  final ConsoleLog console = ConsoleLog();
   /// The ignore pane's highlight asks git, so it waits for the cursor to settle.
   Timer? ignoreProbe;
   String? editorCommand;
@@ -78,6 +84,7 @@ class ShellState extends State<Shell> {
     ignoreProbe?.cancel();
     ignorePane.dispose();
     notices.dispose();
+    console.dispose();
     changes.dispose();
     commitController.dispose();
     commitFocus.dispose();
@@ -141,7 +148,7 @@ class ShellState extends State<Shell> {
     // F5 and Ctrl+R: ask git again and redraw the list, the desktop habit.
     if (event.logicalKey == LogicalKeyboardKey.f5 ||
         (keyboard.isControlPressed && event.character?.toLowerCase() == 'r')) {
-      changes.load();
+      reloadAll();
       return KeyEventResult.handled;
     }
     if (event.logicalKey == LogicalKeyboardKey.enter && keyboard.isControlPressed) {
@@ -188,7 +195,7 @@ class ShellState extends State<Shell> {
       case 'e':
         openFocusedFile();
       case 'r':
-        changes.load();
+        reloadAll();
       case 'c':
         commitFocus.requestFocus();
       default:
@@ -201,13 +208,17 @@ class ShellState extends State<Shell> {
   /// a failure comes back as a notice and the list is put right again.
   Future<void> trackSel() async {
     final problem = await changes.trackSelected();
-    if (mounted && problem != null) say(problem);
+    if (mounted && problem != null) {
+      say(problem, failure: changes.lastFailure, action: 'track');
+    }
   }
 
   /// `u`: stop tracking the highlighted rows, at once.
   Future<void> untrackSel() async {
     final problem = await changes.untrackSelected();
-    if (mounted && problem != null) say(problem);
+    if (mounted && problem != null) {
+      say(problem, failure: changes.lastFailure, action: 'untrack');
+    }
   }
 
   /// `e`: open the focused file in the chosen editor.
@@ -224,7 +235,15 @@ class ShellState extends State<Shell> {
     try {
       await editors.open(file: '${widget.repo.path}/${row.path}');
     } on EditorException catch (error) {
-      say(error.message);
+      say(
+        error.message,
+        failure: ActionFailure.fromError(
+          error,
+          origin: 'Shell.openFocusedFile -> Editors.open',
+          params: {'file': row.path},
+        ),
+        action: 'open',
+      );
     }
   }
 
@@ -234,10 +253,19 @@ class ShellState extends State<Shell> {
   Future<void> ignoreQuick() async {
     try {
       final problem = await changes.ignoreQuick();
+      await reloadIgnorePane();
       if (!mounted || problem == null) return;
-      say(problem);
+      say(problem, failure: changes.lastFailure, action: 'ignore');
     } on Exception catch (error) {
-      say('ignore failed: $error');
+      say(
+        'ignore failed',
+        failure: ActionFailure.fromError(
+          error,
+          origin: 'Shell.ignoreQuick',
+          params: {'selected': changes.selectionCount},
+        ),
+        action: 'ignore',
+      );
     }
   }
 
@@ -265,24 +293,52 @@ class ShellState extends State<Shell> {
         target: choice.target,
         stopTracking: choice.stopTracking,
       );
+      await reloadIgnorePane();
       if (!mounted || problem == null) return;
-      say(problem);
+      say(problem, failure: changes.lastFailure, action: 'ignore');
     } on Exception catch (error) {
-      say('ignore failed: $error');
+      say(
+        'ignore failed',
+        failure: ActionFailure.fromError(
+          error,
+          origin: 'Shell.ignoreSelectedRow',
+          params: {'row': row.path},
+        ),
+        action: 'ignore',
+      );
     }
   }
 
   /// The one place a failure is reported: a notice that stays while the mouse is
-  /// over it. A success says nothing.
-  void say(String message) {
+  /// over it, and a row in the Console mode with the full story. A success says
+  /// nothing.
+  void say(String message, {ActionFailure? failure, String? action}) {
     if (!mounted) return;
     notices.show(message);
+    console.add(
+      failure ??
+          ActionFailure(
+            summary: message,
+            detail: 'origin: Shell.say\nmessage: $message',
+            origin: 'Shell.say',
+          ),
+      action: action,
+    );
   }
 
   /// The first load touches git twice: the status and the ignore files, then the
   /// highlight for whichever row ends up focused.
-  Future<void> loadEverything() async {
+  Future<void> loadEverything() => reloadAll();
+
+  /// Re-read everything an action can change: the status list, the ignore files
+  /// and the highlight. The r key, F5 and Ctrl+R call this.
+  Future<void> reloadAll() async {
     await changes.load();
+    await reloadIgnorePane();
+  }
+
+  /// The ignore files alone: after an ignore action they are what changed.
+  Future<void> reloadIgnorePane() async {
     await ignorePane.load();
     syncIgnoreFocus();
   }
@@ -312,7 +368,15 @@ class ShellState extends State<Shell> {
     try {
       await editors.open(file: '${widget.repo.path}/$file');
     } on EditorException catch (error) {
-      say(error.message);
+      say(
+        error.message,
+        failure: ActionFailure.fromError(
+          error,
+          origin: 'Shell.openTestFile -> Editors.open',
+          params: {'file': file},
+        ),
+        action: 'open',
+      );
     }
   }
 
@@ -326,7 +390,15 @@ class ShellState extends State<Shell> {
     try {
       await editors.open(file: '${widget.repo.path}/${file.path}');
     } on EditorException catch (error) {
-      say(error.message);
+      say(
+        error.message,
+        failure: ActionFailure.fromError(
+          error,
+          origin: 'Shell.openSelectedIgnore -> Editors.open',
+          params: {'file': file.path},
+        ),
+        action: 'open',
+      );
     }
   }
 
@@ -344,16 +416,24 @@ class ShellState extends State<Shell> {
       ignorePane.select(relative);
       await ignorePane.focusPath(row.path);
       await changes.load();
-      say('created $relative');
     } on Exception catch (error) {
-      say('could not create $relative: $error');
+      say(
+        'could not create $relative',
+        failure: ActionFailure.fromError(
+          error,
+          origin: 'Shell.newIgnoreHere -> Repo.createIgnoreFile',
+          params: {'file': relative, 'cwd': widget.repo.path},
+        ),
+        action: 'new ignore',
+      );
     }
   }
 
   static const _altDigits = {
     Mode.changes: LogicalKeyboardKey.digit1,
     Mode.settings: LogicalKeyboardKey.digit2,
-    Mode.help: LogicalKeyboardKey.digit3,
+    Mode.console: LogicalKeyboardKey.digit3,
+    Mode.help: LogicalKeyboardKey.digit4,
   };
 
   @override
@@ -409,6 +489,7 @@ class ShellState extends State<Shell> {
             onChoose: chooseEditor,
             onTest: openTestFile,
           ),
+          ConsoleView(log: console),
           const HelpView(),
         ],
       );
@@ -467,5 +548,3 @@ class _RailButton extends StatelessWidget {
     );
   }
 }
-
-

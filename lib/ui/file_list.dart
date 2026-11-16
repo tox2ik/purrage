@@ -222,7 +222,7 @@ class RowTile extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(9, 2, 8, 2),
             child: Row(
               children: [
-                _Badge(text: _badge, color: chosen ? scheme.primary : scheme.outline),
+                _Badge(text: _badge, color: chosen ? scheme.primary : scheme.onSurfaceVariant),
                 const SizedBox(width: 7),
                 Expanded(child: _name(style, scheme, chosen)),
               ],

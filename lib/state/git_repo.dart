@@ -8,9 +8,12 @@ import 'status.dart';
 
 /// A failure worth showing to the user, with git's own words kept.
 class GitException implements Exception {
-  GitException(this.message);
+  GitException(this.message, {this.detail});
 
   final String message;
+
+  /// The command line and working directory, when the caller knows them.
+  final String? detail;
 
   @override
   String toString() => message;
@@ -40,13 +43,15 @@ class IgnoreMatch {
     final tab = raw.indexOf('\t');
     final head = tab < 0 ? raw : raw.substring(0, tab);
     final path = tab < 0 ? '' : raw.substring(tab + 1);
-    final first = head.indexOf(':');
-    final second = first < 0 ? -1 : head.indexOf(':', first + 1);
-    if (first < 0 || second < 0) return null;
+    // `<source>:<line>:<pattern>`, and `<source>` is an absolute path on Windows,
+    // so it starts with a drive letter and a colon of its own. Split from the
+    // right: the last `:<digits>:` before the pattern is the separator.
+    final match = RegExp(r'^(.*):(\d+):(.*)$').firstMatch(head);
+    if (match == null) return null;
     return IgnoreMatch(
-      source: head.substring(0, first),
-      line: int.tryParse(head.substring(first + 1, second)) ?? 0,
-      pattern: head.substring(second + 1),
+      source: match[1]!,
+      line: int.tryParse(match[2]!) ?? 0,
+      pattern: match[3]!,
       path: path,
     );
   }
