@@ -16,12 +16,16 @@ class ChangesView extends StatefulWidget {
     required this.commitController,
     required this.commitFocus,
     required this.onIgnore,
+    required this.filterController,
+    required this.filterFocus,
   });
 
   final Changes changes;
   final TextEditingController commitController;
   final FocusNode commitFocus;
   final VoidCallback onIgnore;
+  final TextEditingController filterController;
+  final FocusNode filterFocus;
 
   @override
   State<ChangesView> createState() => _ChangesViewState();
@@ -49,7 +53,12 @@ class _ChangesViewState extends State<ChangesView> {
               children: [
                 SizedBox(
                   width: width,
-                  child: FileList(changes: changes, onIgnore: widget.onIgnore),
+                  child: FileList(
+                    changes: changes,
+                    onIgnore: widget.onIgnore,
+                    filterController: widget.filterController,
+                    filterFocus: widget.filterFocus,
+                  ),
                 ),
                 SplitHandle(
                   onDrag: (delta) => setState(() {

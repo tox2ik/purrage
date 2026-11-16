@@ -17,6 +17,7 @@ const List<KeyHelp> keyTable = [
   KeyHelp('u', 'stop tracking, keep on disk'),
   KeyHelp('i', 'ignore: pick scope and which ignore file'),
   KeyHelp('c', 'jump to the commit message'),
+  KeyHelp('/', 'filter the list (Esc clears, Enter leaves)'),
   KeyHelp('r', 'refresh from git'),
   KeyHelp('Tab / Shift+Tab', 'next / previous pane'),
   KeyHelp('?', 'this list'),

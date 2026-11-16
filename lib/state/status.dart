@@ -136,3 +136,14 @@ RowKind _kindFor(String column) => switch (column) {
       'T' => RowKind.typeChanged,
       _ => RowKind.modified,
     };
+
+/// The rows whose path contains [query], case-insensitive. A plain substring on
+/// purpose: predictable, and fast enough for the sizes a working tree reaches.
+List<StatusRow> filterRows(List<StatusRow> rows, String query) {
+  final needle = query.trim().toLowerCase();
+  if (needle.isEmpty) return rows;
+  return [
+    for (final row in rows)
+      if (row.path.toLowerCase().contains(needle)) row,
+  ];
+}

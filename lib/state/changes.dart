@@ -15,6 +15,8 @@ class Changes extends ChangeNotifier {
   final Repo repo;
 
   List<StatusRow> _rows = const [];
+  List<StatusRow> _visible = const [];
+  String _filter = '';
   int _index = 0;
   bool _busy = false;
   String? _error;
@@ -22,17 +24,23 @@ class Changes extends ChangeNotifier {
   String? _previewPath;
 
   List<StatusRow> get rows => _rows;
+
+  /// The rows the list shows: [rows] narrowed by [filter].
+  List<StatusRow> get visible => _visible;
+
+  String get filter => _filter;
+
   int get index => _index;
   bool get busy => _busy;
   String? get error => _error;
   FilePreview? get preview => _preview;
   String? get previewPath => _previewPath;
 
-  StatusRow? get selected => _rows.isEmpty ? null : _rows[_index];
+  StatusRow? get selected => _visible.isEmpty ? null : _visible[_index];
 
   /// Rows of one section, in display order.
   List<StatusRow> section(Section section) =>
-      _rows.where((row) => row.section == section).toList();
+      _visible.where((row) => row.section == section).toList();
 
   int get stagedCount => _rows.where((row) => row.section == Section.staged).length;
 
@@ -46,6 +54,7 @@ class Changes extends ChangeNotifier {
     try {
       final rows = await repo.status();
       _rows = [...rows]..sort(_compare);
+      _applyFilter();
       _index = _indexAfterReload(keepPath);
       _error = null;
     } on GitException catch (error) {
@@ -58,11 +67,11 @@ class Changes extends ChangeNotifier {
   }
 
   int _indexAfterReload(String? keepPath) {
-    if (_rows.isEmpty) return 0;
-    if (keepPath == null) return _index.clamp(0, _rows.length - 1);
-    final found = _rows.indexWhere((row) => row.path == keepPath);
+    if (_visible.isEmpty) return 0;
+    if (keepPath == null) return _index.clamp(0, _visible.length - 1);
+    final found = _visible.indexWhere((row) => row.path == keepPath);
     if (found >= 0) return found;
-    return _index.clamp(0, _rows.length - 1);
+    return _index.clamp(0, _visible.length - 1);
   }
 
   static int _compare(StatusRow a, StatusRow b) {
@@ -70,10 +79,24 @@ class Changes extends ChangeNotifier {
     return bySection != 0 ? bySection : a.path.compareTo(b.path);
   }
 
+  /// Narrow the list; the cursor goes to the first match and the preview follows.
+  Future<void> setFilter(String query) async {
+    if (query == _filter) return;
+    _filter = query;
+    _applyFilter();
+    _index = 0;
+    notifyListeners();
+    await _loadPreview();
+  }
+
+  void _applyFilter() {
+    _visible = filterRows(_rows, _filter);
+  }
+
   /// Move the cursor by [delta] rows, staying inside the list.
   Future<void> move(int delta) async {
-    if (_rows.isEmpty) return;
-    final next = (_index + delta).clamp(0, _rows.length - 1);
+    if (_visible.isEmpty) return;
+    final next = (_index + delta).clamp(0, _visible.length - 1);
     if (next == _index) return;
     _index = next;
     notifyListeners();
@@ -81,8 +104,8 @@ class Changes extends ChangeNotifier {
   }
 
   Future<void> select(int index) async {
-    if (_rows.isEmpty) return;
-    final next = index.clamp(0, _rows.length - 1);
+    if (_visible.isEmpty) return;
+    final next = index.clamp(0, _visible.length - 1);
     if (next == _index) return;
     _index = next;
     notifyListeners();

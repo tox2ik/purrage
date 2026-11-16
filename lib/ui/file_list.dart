@@ -3,14 +3,23 @@ import 'package:flutter/material.dart';
 import '../state/changes.dart';
 import '../state/status.dart';
 import 'changes_view.dart';
+import 'filter_field.dart';
 
 /// The list itself: one row per staged/changed/untracked path, grouped by
 /// section, with the focused row kept in view.
 class FileList extends StatefulWidget {
-  const FileList({super.key, required this.changes, required this.onIgnore});
+  const FileList({
+    super.key,
+    required this.changes,
+    required this.onIgnore,
+    required this.filterController,
+    required this.filterFocus,
+  });
 
   final Changes changes;
   final VoidCallback onIgnore;
+  final TextEditingController filterController;
+  final FocusNode filterFocus;
 
   @override
   State<FileList> createState() => _FileListState();
@@ -45,8 +54,28 @@ class _FileListState extends State<FileList> {
   @override
   Widget build(BuildContext context) {
     final changes = widget.changes;
+    final filter = FilterField(
+      controller: widget.filterController,
+      focusNode: widget.filterFocus,
+      onChanged: changes.setFilter,
+    );
     if (changes.rows.isEmpty) {
-      return const Center(child: Text('Nothing to commit, working tree clean.'));
+      return Column(
+        children: [
+          filter,
+          const Expanded(
+            child: Center(child: Text('Nothing to commit, working tree clean.')),
+          ),
+        ],
+      );
+    }
+    if (changes.visible.isEmpty) {
+      return Column(
+        children: [
+          filter,
+          Expanded(child: Center(child: Text('No path matches "${changes.filter}".'))),
+        ],
+      );
     }
     final children = <Widget>[];
     var flat = 0;
@@ -71,7 +100,14 @@ class _FileListState extends State<FileList> {
         ));
       }
     }
-    return ListView(controller: scroll, children: children);
+    return Column(
+      children: [
+        filter,
+        Expanded(
+          child: ListView(controller: scroll, children: children),
+        ),
+      ],
+    );
   }
 }
 

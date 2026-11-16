@@ -120,7 +120,7 @@ The ignore pane becomes a list of `.gitignore` files, not one file:
   above; `Ctrl+arrow` jumps in that direction.
 - In the preview: `Up`/`Down` scroll 3 lines, `Shift` (`J`/`K`) 10, `PgUp`/`PgDn`, `Home`/`End`.
 - Actions: `space` track, `u` untrack, `i` ignore menu, `e` open file, `E` open `.gitignore`,
-  `c` commit, `r` refresh, `Esc` cancel/close.
+  `c` commit, `r` refresh, `/` filter the list, `Esc` cancel/close.
 - Two-key commands go through `KeySequence`; plain keys are ignored while a text field has
   focus; every key is also listed in the Help table.
 

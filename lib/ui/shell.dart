@@ -39,6 +39,8 @@ class ShellState extends State<Shell> {
   final FocusNode shellFocus = FocusNode(debugLabel: 'shell');
   final TextEditingController commitController = TextEditingController();
   final FocusNode commitFocus = FocusNode(debugLabel: 'commit message');
+  final TextEditingController filterController = TextEditingController();
+  final FocusNode filterFocus = FocusNode(debugLabel: 'filter');
   Mode mode = Mode.changes;
 
   @override
@@ -52,6 +54,8 @@ class ShellState extends State<Shell> {
     changes.dispose();
     commitController.dispose();
     commitFocus.dispose();
+    filterController.dispose();
+    filterFocus.dispose();
     shellFocus.dispose();
     super.dispose();
   }
@@ -99,7 +103,7 @@ class ShellState extends State<Shell> {
       return KeyEventResult.handled;
     }
 
-    if (mode != Mode.changes || commitFocus.hasFocus) {
+    if (mode != Mode.changes || commitFocus.hasFocus || filterFocus.hasFocus) {
       return KeyEventResult.ignored;
     }
     return _changesKey(event);
@@ -112,6 +116,10 @@ class ShellState extends State<Shell> {
       return KeyEventResult.handled;
     }
     if (!isPlain(event)) return KeyEventResult.ignored;
+    if (event.logicalKey == LogicalKeyboardKey.slash) {
+      filterFocus.requestFocus();
+      return KeyEventResult.handled;
+    }
     if (event.character?.toLowerCase() == 'i') {
       ignoreSelectedRow();
       return KeyEventResult.handled;
@@ -181,6 +189,8 @@ class ShellState extends State<Shell> {
             commitController: commitController,
             commitFocus: commitFocus,
             onIgnore: ignoreSelectedRow,
+            filterController: filterController,
+            filterFocus: filterFocus,
           ),
           const SettingsPlaceholder(),
           const HelpView(),
