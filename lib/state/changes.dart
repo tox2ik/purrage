@@ -25,6 +25,7 @@ class Changes extends ChangeNotifier {
   String _filter = '';
   int _index = 0;
   bool _busy = false;
+  bool _merging = false;
   String? _error;
 
   List<StatusRow> get rows => _rows;
@@ -64,7 +65,8 @@ class Changes extends ChangeNotifier {
 
   int get stagedCount => _rows.where((row) => row.section == Section.staged).length;
 
-  bool get canCommit => stagedCount > 0 && !_busy;
+  /// A merge in progress blocks the commit button: git would refuse anyway.
+  bool get canCommit => stagedCount > 0 && !_busy && !_merging;
 
   static String _key(StatusRow row) => '${row.section.index}\u0000${row.path}';
 
@@ -80,6 +82,7 @@ class Changes extends ChangeNotifier {
       _pruneSelection();
       _index = _indexAfterReload(keepPath);
       _selectCursorIfEmpty();
+      _merging = await repo.mergeInProgress();
       _error = null;
     } on GitException catch (error) {
       _error = error.message;

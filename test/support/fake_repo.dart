@@ -50,6 +50,9 @@ class FakeRepo implements GitRepo {
   }
 
   @override
+  Future<bool> mergeInProgress() async => false;
+
+  @override
   Future<IgnoreMatch?> checkIgnore(String path) async => null;
 
   @override

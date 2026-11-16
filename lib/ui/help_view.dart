@@ -18,6 +18,8 @@ const List<KeyHelp> keyTable = [
   KeyHelp('i', 'ignore: pick scope and which ignore file'),
   KeyHelp('c', 'jump to the commit message'),
   KeyHelp('/', 'filter the list (Esc clears, Enter leaves)'),
+  KeyHelp('e / E', 'open the file / the selected .gitignore in the editor'),
+  KeyHelp('Ctrl+click / Shift+click', 'select one more / select a range'),
   KeyHelp('r', 'refresh from git'),
   KeyHelp('Tab / Shift+Tab', 'next / previous pane'),
   KeyHelp('?', 'this list'),

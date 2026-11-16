@@ -142,6 +142,10 @@ class ShellState extends State<Shell> {
       ignoreSelectedRow();
       return KeyEventResult.handled;
     }
+    if (event.character == 'E') {
+      openSelectedIgnore();
+      return KeyEventResult.handled;
+    }
     if (event.character?.toLowerCase() == 'i') {
       ignoreQuick();
       return KeyEventResult.handled;
@@ -151,6 +155,8 @@ class ShellState extends State<Shell> {
         changes.trackSelected();
       case 'u':
         changes.untrackSelected();
+      case 'e':
+        openFocusedFile();
       case 'r':
         changes.load();
       case 'c':
@@ -159,6 +165,24 @@ class ShellState extends State<Shell> {
         return KeyEventResult.ignored;
     }
     return KeyEventResult.handled;
+  }
+
+  /// `e`: open the focused file in the chosen editor.
+  Future<void> openFocusedFile() async {
+    final row = changes.selected;
+    if (row == null) {
+      say('nothing selected to open');
+      return;
+    }
+    if (row.path.endsWith('/')) {
+      say('${row.path} is a folder');
+      return;
+    }
+    try {
+      await editors.open(file: '${widget.repo.path}/${row.path}');
+    } on EditorException catch (error) {
+      say(error.message);
+    }
   }
 
   /// One key: ignore the focused rows with their literal path in the root
