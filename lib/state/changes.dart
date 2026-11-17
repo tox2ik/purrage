@@ -169,7 +169,12 @@ class Changes extends ChangeNotifier {
 
   static int _compare(StatusRow a, StatusRow b) {
     final bySection = a.section.index.compareTo(b.section.index);
-    return bySection != 0 ? bySection : a.path.compareTo(b.path);
+    if (bySection != 0) return bySection;
+    // The two columns decide the order: folder first, then base name, both
+    // case-insensitive, matching what the eye scans.
+    final byFolder = a.folder.toLowerCase().compareTo(b.folder.toLowerCase());
+    if (byFolder != 0) return byFolder;
+    return a.name.toLowerCase().compareTo(b.name.toLowerCase());
   }
 
   /// Narrow the list; the cursor goes to the first match and is the selection.

@@ -299,7 +299,8 @@ class RepoBrowser extends ChangeNotifier {
     }
 
     clock.stop();
-    repos = found..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    found.sort(_byColumns);
+    repos = found;
     if (stopped) {
       error = 'stopped after $maxDirectories directories; narrow the folder to see more';
     }
@@ -332,6 +333,22 @@ class RepoBrowser extends ChangeNotifier {
   static Future<bool> _hasGit(String path) async {
     final kind = await FileSystemEntity.type('$path/.git');
     return kind != FileSystemEntityType.notFound;
+  }
+
+  /// The list's two columns decide the order: the containing path first, then the
+  /// base name, both case-insensitive — the order a reader scans the screen.
+  static int _byColumns(String a, String b) {
+    final left = _split(a);
+    final right = _split(b);
+    final byFolder = left.$1.toLowerCase().compareTo(right.$1.toLowerCase());
+    if (byFolder != 0) return byFolder;
+    return left.$2.toLowerCase().compareTo(right.$2.toLowerCase());
+  }
+
+  static (String, String) _split(String path) {
+    final clean = _clean(path);
+    final slash = clean.lastIndexOf('/');
+    return slash < 0 ? ('', clean) : (clean.substring(0, slash), clean.substring(slash + 1));
   }
 }
 
