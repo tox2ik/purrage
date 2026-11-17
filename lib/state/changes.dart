@@ -280,6 +280,8 @@ class Changes extends ChangeNotifier {
       for (final row in rows) {
         await repo.untrack(row.path);
       }
+      // A gitlink needed `-f`; report the command that actually ran.
+      lastCommand = repo.lastCommand ?? lastCommand;
     } on Exception catch (error) {
       _setRows(before);
       lastFailure = ActionFailure.fromError(

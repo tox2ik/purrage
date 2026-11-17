@@ -70,6 +70,10 @@ abstract class GitRepo {
   /// Stop tracking a path but leave it on disk.
   Future<void> untrack(String path);
 
+  /// The git command line that ran last, for the console's report; null when the
+  /// implementation does not run git.
+  String? get lastCommand;
+
   /// Commit the index with one summary line.
   Future<void> commit(String summary);
 

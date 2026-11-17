@@ -33,8 +33,13 @@ class Repo implements GitRepo {
     }
   }
 
-  Future<ProcessResult> _git(List<String> args, {bool throwOnError = true}) =>
-      dir.runCommand(args, throwOnError: throwOnError);
+  @override
+  String? lastCommand;
+
+  Future<ProcessResult> _git(List<String> args, {bool throwOnError = true}) {
+    lastCommand = 'git ${args.join(' ')}';
+    return dir.runCommand(args, throwOnError: throwOnError);
+  }
 
   /// True when there is nothing to stage, change or list.
   Future<bool> isClean() async {
@@ -74,7 +79,15 @@ class Repo implements GitRepo {
   /// Stop tracking a path but leave it on disk.
   @override
   Future<void> untrack(String path) async {
-    await _git(['rm', '--cached', '--', path]);
+    try {
+      await _git(['rm', '--cached', '--', path]);
+    } on GitException catch (error) {
+      // A submodule or a nested repository: its staged content matches neither
+      // HEAD nor the working tree, so git insists on -f. With --cached that only
+      // drops the index entry; the file or folder stays on disk.
+      if (!error.message.contains('use -f to force removal')) rethrow;
+      await _git(['rm', '--cached', '-f', '--', path]);
+    }
   }
 
   /// Commit the index with one summary line.

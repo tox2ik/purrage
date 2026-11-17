@@ -14,6 +14,9 @@ class IgnoreFakeRepo implements GitRepo {
     this.failLoad = false,
   });
 
+  @override
+  String? get lastCommand => null;
+
   final List<String> ignoreFiles;
   final Map<String, String> contents;
   final Map<String, IgnoreMatch?> matches;

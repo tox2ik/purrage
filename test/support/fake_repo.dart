@@ -9,6 +9,9 @@ class FakeRepo implements GitRepo {
   List<StatusRow> rows;
 
   @override
+  String? lastCommand;
+
+  @override
   final String path;
 
   /// `'<file>| <pattern>'` per accepted rule.
@@ -22,6 +25,7 @@ class FakeRepo implements GitRepo {
   @override
   Future<void> track(Iterable<String> paths) async {
     final staged = paths.toSet();
+    lastCommand = 'git add -- ${paths.join(' ')}';
     rows = [
       for (final row in rows)
         if (staged.contains(row.path))
@@ -38,6 +42,7 @@ class FakeRepo implements GitRepo {
 
   @override
   Future<void> untrack(String path) async {
+    lastCommand = 'git rm --cached -- $path';
     rows = [
       for (final row in rows)
         if (row.path != path) row,
