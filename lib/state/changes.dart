@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -72,19 +73,35 @@ class Changes extends ChangeNotifier {
       path.endsWith('/') ? path.substring(0, path.length - 1) : path;
 
   /// Ask once per path whether it is an embedded repository, and redraw when a
-  /// new one is found. A stat per row, off the frame that drew the list.
-  void _scanNested() {
-    for (final row in _rows) {
+  /// new one is found.
+  ///
+  /// Called only from `load()`: startup and an explicit reload (`r`, `F5`,
+  /// `Ctrl+R`). Actions must not pay for it — they redraw the list, and this stat
+  /// per directory row is what made scrolling stutter on Windows.
+  Future<void> _scanNested(List<StatusRow> rows) async {
+    final links = await repo.gitlinks();
+    for (final link in links) {
+      _nested.add(link);
+    }
+
+    // Only a directory row can hold a `.git`: those are the ones git prints with
+    // a trailing slash. Files are never stat-ed.
+    var asked = 0;
+    for (final row in rows) {
+      if (!row.path.endsWith('/')) continue;
       final key = _dirKey(row.path);
       if (key.isEmpty || !_scanned.add(key)) continue;
-      repo.isNestedRepository(key).then((nested) {
-        if (!nested) return;
+      if (links.contains(key)) {
         _nested.add(key);
-        notifyListeners();
-      }).catchError((Object _) {
-        // A path that cannot be stat-ed simply gets no indicator.
-      });
+        continue;
+      }
+      final nested = await repo.isNestedRepository(key);
+      if (nested) _nested.add(key);
+      // Hand the frame back every so often, so a hundred stats cannot hold the
+      // event loop while the user scrolls.
+      if (++asked % 20 == 0) await Future<void>.delayed(Duration.zero);
     }
+    notifyListeners();
   }
 
   List<StatusRow> get selectedRows => [
@@ -107,6 +124,9 @@ class Changes extends ChangeNotifier {
   static String _key(StatusRow row) => '${row.section.index}\u0000${row.path}';
 
   /// Reload from git, keeping the cursor on the same path when it still exists.
+  ///
+  /// The nested-repository probe runs after the list is on screen and is not
+  /// awaited: the rows must not wait on a hundred stats.
   Future<void> load() async {
     _busy = true;
     notifyListeners();
@@ -118,7 +138,6 @@ class Changes extends ChangeNotifier {
       _pruneSelection();
       _index = _indexAfterReload(keepPath);
       _selectCursorIfEmpty();
-      _scanNested();
       _error = null;
     } on GitException catch (error) {
       _error = error.message;
@@ -126,6 +145,7 @@ class Changes extends ChangeNotifier {
       _busy = false;
       notifyListeners();
     }
+    unawaited(_scanNested(_rows));
   }
 
   /// A reload can drop rows; their keys must not linger in the selection.
@@ -506,7 +526,6 @@ class Changes extends ChangeNotifier {
     _pruneSelection();
     _index = _visible.isEmpty ? 0 : _index.clamp(0, _visible.length - 1);
     _selectCursorIfEmpty();
-    _scanNested();
     notifyListeners();
   }
 

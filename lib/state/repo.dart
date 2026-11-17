@@ -214,6 +214,21 @@ class Repo implements GitRepo {
     return kind != FileSystemEntityType.notFound;
   }
 
+  /// `git ls-files -s -z`, keeping the mode-160000 entries.
+  @override
+  Future<Set<String>> gitlinks() async {
+    final result = await _git(['ls-files', '-s', '-z'], throwOnError: false);
+    if (result.exitCode != 0) return {};
+    final out = result.stdout as String;
+    final found = <String>{};
+    for (final record in out.split('\u0000')) {
+      if (!record.startsWith('160000 ')) continue;
+      final tab = record.indexOf('\t');
+      if (tab >= 0 && tab + 1 < record.length) found.add(record.substring(tab + 1));
+    }
+    return found;
+  }
+
   /// Write [text] to [file], getting past the Windows Hidden attribute.
   ///
   /// Windows refuses `CreateFileW(..., CREATE_ALWAYS)` with ERROR_ACCESS_DENIED

@@ -65,6 +65,9 @@ class IgnoreFakeRepo implements GitRepo {
   @override
   Future<bool> isNestedRepository(String path) async => false;
 
+  @override
+  Future<Set<String>> gitlinks() async => const {};
+
 }
 
 IgnoreFakeRepo fixture() => IgnoreFakeRepo(

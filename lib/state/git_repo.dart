@@ -79,6 +79,10 @@ abstract class GitRepo {
   /// inside them, not here.
   Future<bool> isNestedRepository(String path);
 
+  /// The gitlink paths of the index (mode 160000): submodules and embedded repos.
+  /// One call answers what a stat per row would otherwise have to guess.
+  Future<Set<String>> gitlinks();
+
   /// Commit the index with one summary line.
   Future<void> commit(String summary);
 
