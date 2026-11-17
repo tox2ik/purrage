@@ -22,13 +22,19 @@ class Repo implements GitRepo {
   @override
   String get path => dir.path;
 
+  /// Open the repository at [path].
+  ///
+  /// The catch is deliberately `Object`, not `Exception`: `GitDir.fromExisting`
+  /// throws an `ArgumentError` for a directory it does not accept, and an `Error`
+  /// would otherwise escape past every `on Exception` guard and land in the zone
+  /// handler as an uncaught exception.
   static Future<Repo> open(String path) async {
     try {
       final dir = await GitDir.fromExisting(path, allowSubdirectory: true);
       return Repo._(dir);
     } on ProcessException catch (error) {
       throw GitException('git could not be started: ${error.message}');
-    } on Exception catch (error) {
+    } catch (error) {
       throw GitException('not a git repository: $path\n$error');
     }
   }

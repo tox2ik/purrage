@@ -46,6 +46,17 @@ class RepoBrowser extends ChangeNotifier {
   static String _clean(String path) =>
       path.replaceAll(r'\', '/').replaceAll(RegExp(r'/+$'), '');
 
+  /// Drop an entry the user tried to open and git refused, so the list stops
+  /// offering a checkout that is gone or was never one.
+  void drop(String path) {
+    final before = repos.length;
+    repos = [
+      for (final repo in repos)
+        if (repo != path) repo,
+    ];
+    if (repos.length != before) notifyListeners();
+  }
+
   /// Go one level up and scan there.
   Future<void> up() async {
     final slash = directory.lastIndexOf('/');

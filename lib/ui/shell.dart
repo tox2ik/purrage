@@ -138,12 +138,19 @@ class ShellState extends State<Shell> {
         ),
         action: 'browse',
       );
-    } on Exception catch (error) {
+    } catch (error) {
+      // `Object`, not `Exception`: a failure here can be an Error (see Repo.open)
+      // and it must become a notice and a console row, not a zone crash.
       say(
         'cannot open $path',
-        failure: ActionFailure.fromError(error, origin: 'Shell.openRepository -> Repo.open', params: {'path': path}),
+        failure: ActionFailure.fromError(
+          error,
+          origin: 'Shell.openRepository -> Repo.open',
+          params: {'path': path},
+        ),
         action: 'browse',
       );
+      browser.drop(path);
     } finally {
       Diagnostics.leave();
     }
