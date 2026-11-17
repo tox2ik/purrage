@@ -26,6 +26,9 @@ without widgets). Project management lives here too: `backlog/` (Backlog.md task
 - Stacked branches: each task is one `PR-<slug>` branch, started from the branch before it in
   the stack, and its commits carry `Stacked-On: PR-<previous>`. Each task file opens with its
   merge position (`Merge N of 21`); merge in that order, which is then a fast-forward each time.
+  Parallel stacks are joined by rebasing each onto the previous stack's tip
+  (`git rebase --update-refs`), tagging the old tips `pre-join-*` first, and land on `develop`,
+  not `main`.
 - The user reads code; do not paste diffs into the chat. Report what changed and where.
 
 ## Commands
@@ -36,7 +39,10 @@ without widgets). Project management lives here too: `backlog/` (Backlog.md task
 - `make live`: the same, on your home folder (`-a "$(USERPROFILE)"`, the app's first argument),
   with everything written to `out/live.log` (a new file per run)
 - `make build`: release build, `build\windows\x64\runner\Release\purrage.exe`
-- `make test`: the whole suite, two files at a time (`concurrency: 2`)
+- `make test`: the whole suite, two files at a time (`concurrency: 2`), then the count of
+  `purrage_*` folders in `%TEMP%` before and after
+- `make timings`: the ms per action the app recorded (`%APPDATA%/Purrage/ui-timing.json`);
+  `make measure`: move, track and ignore over 2,000 rows, no git
 - `make analyze`: `flutter analyze`
 - `make format`: `dart format lib test`
 
@@ -57,14 +63,21 @@ operator (`& "$(FLUTTER)" …`) because a quoted `.bat` path is not a command in
   - never drive git, sockets or file watchers from a widget test;
   - parser and state tests are plain `test()`s, repo tests use a throwaway repo in a plain
     `test()` (`makeRepo()`), and a widget test gets a state object already built from fixtures.
-- If a test does hang, kill it: `Get-Process flutter_tester,dart | Stop-Process -Force`; `Ctrl+C`
-  in the running terminal is not enough once the fake clock owns the timers.
+- If a test does hang, kill **only the run you started** (note its PID); `Ctrl+C` in the running
+  terminal is not enough once the fake clock owns the timers. Never `Get-Process
+  flutter_tester,dart | Stop-Process`: other worktrees may be testing at the same time, and a
+  locked file or a killed run may be theirs, so rerun once before treating it as real.
+- `test/flutter_test_config.dart` fails a test file that leaves a `purrage_*` folder behind;
+  state objects expose `idle()`, and a test awaits it before its temp repo is deleted.
 - A test cleans up after itself: temp repos go through the `makeRepo()` helper in
   `test/support/`, which registers cleanup, and they set `core.fsmonitor=false`. After a run the
   count of `purrage_*` folders in `%TEMP%` is the same as before.
 - Parser tests use fixture strings and need no git at all.
-- `test/support/fake_repo.dart` implements `GitRepo` in memory; `Shell(repo: …, seeded: changes)`
-  makes the real shell drivable without git, files or a clock.
+- `test/support/fake_repo.dart` implements `GitRepo` in memory (`calls`, `failures`, `hold()` to
+  keep a call open); `Shell(workspace: fakeWorkspace(repo, changes: …))` makes the real shell
+  drivable without git, files or a clock. Processes, environment and directory listings go
+  through the seams in `lib/state/system.dart` (`ProcessRunner`, `Env`, `DirectoryLister`), faked
+  in `test/support/fake_system.dart`.
 
 ## UI code
 
@@ -81,14 +94,18 @@ operator (`& "$(FLUTTER)" …`) because a quoted `.bat` path is not a command in
 - The list is a `ListView.builder` over a flat list of headers and rows. A rebuild must cost the
   visible tiles, never every row in the repo.
 - Row actions are text (`Add`/`Untrack`, `Ignore`) in a fixed slot between the folder and the name,
-  and they call the shell, which reports; they must never call `Changes` directly, or a failure
-  has nowhere to go.
+  and they call the `Workspace` (`lib/state/workspace.dart`), which reports; they must never call
+  `Changes` directly, or a failure has nowhere to go. `shell.dart` only lays out and routes keys.
+- Clickable things are the atoms in `lib/ui/widgets.dart` (`Clickable`, `IconAction`,
+  `SmallButton`, `HoverRow`, …), the only place that sets the pointer cursor;
+  `test/ui_rules_test.dart` checks that, `build` under 50 lines and one-statement handlers.
 
 ## Responsiveness (the app must feel instant)
 
 - **Actions are optimistic**: `track`, `untrack`, `ignore` move or remove the rows first, run git
   behind them, and restore the previous list on failure. A click is a redraw, not a round trip.
-- **No timers, no polling.** Nothing reads `git status` on an interval. Refresh happens after an
+- **No timers, no polling.** Nothing reads `git status` on an interval (the one timer is the
+  debug-only timing file, saved once a minute; it never runs git). Refresh happens after an
   action, and on `r` / `F5` / `Ctrl+R`. A refresh whose result equals the current list does not
   redraw.
 - **Never run git from a cursor move.** The ignore pane's `git check-ignore` is debounced 250 ms
@@ -98,10 +115,11 @@ operator (`& "$(FLUTTER)" …`) because a quoted `.bat` path is not a command in
 
 ## Reporting and the Console mode
 
-- `Changes` keeps `lastFailure` (`ActionFailure`: summary, detail, code, origin, error flag) plus
-  `lastCommand`, `lastOrigin`, `lastChanged`, set by every action.
-- `Shell.say()` shows a notice **and** adds a console row; `Shell.report()` adds a console row for
-  successes. Both go through `ActionFailure`, so the notice and the console never disagree.
+- Every action returns its own `ActionResult` (`done`, `failed` with an `ActionFailure`:
+  summary, detail, code, origin; or `refused` with one sentence). Actions run one at a time
+  through a queue in `Changes`; a failed one restores only its own rows.
+- `Workspace.report(result)` turns it into a console row, and a failure into a notice through
+  `Workspace.say()`, so the notice and the console never disagree. No shared "last" fields.
 - The notice bar (`lib/state/notices.dart`, `lib/ui/notice_bar.dart`) pauses its countdown while
   the mouse is over it. Successes say nothing on screen (except untrack: one grouped notice for
   the untracks within 900 ms, `NoticeGroup`); failures always speak, with the file and
@@ -113,8 +131,9 @@ operator (`& "$(FLUTTER)" …`) because a quoted `.bat` path is not a command in
 
 ## Keys and mouse
 
-- The Ops contract, copied: `navKey(event)` for Up/Down and `j`/`k`/WASD, Tab/Shift+Tab between
-  panes with wrapping, plain keys ignored while a text field has focus.
+- The Ops contract, copied: `motionBindings` (`lib/ui/app_keys.dart`) for Up/Down, `j`/`k`/WASD,
+  Home/End, PageUp/PageDown; Tab/Shift+Tab between the panes on screen, with wrapping; each mode
+  has its own focus node; plain keys ignored while a text field has focus.
 - Selection is the contract: `Shift+Up/Down` extends from the anchor, `Ctrl+Enter` toggles the
   cursor row, `Ctrl`/`Shift` click do the same with the mouse, and **every action acts on the
   highlighted rows** (no silent fallback to the cursor). Rows that are chosen are tinted; the
