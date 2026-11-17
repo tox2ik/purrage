@@ -1,7 +1,7 @@
 ---
 id: task-6
 title: Browse scan and editor detection off the UI thread
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-17'
 labels:
@@ -35,8 +35,27 @@ priority: medium
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 no `*Sync` file system call is left in `lib/` (a grep in a test, or a lint)
-- [ ] #2 Browse shows the first repositories before the scan ends
-- [ ] #3 `up` during a scan cancels it; a test with a fake directory lister checks it
-- [ ] #4 the scan report still names the slowest and widest listings
+- [x] #1 no `*Sync` file system call is left in `lib/` (a grep in a test, or a lint)
+- [x] #2 Browse shows the first repositories before the scan ends
+- [x] #3 `up` during a scan cancels it; a test with a fake directory lister checks it
+- [x] #4 the scan report still names the slowest and widest listings
 <!-- AC:END -->
+
+## Notes
+
+- The walk stays on the UI isolate, made cheap and cancellable: a `Queue` instead of
+  `List.removeAt(0)`, no `isLinkSync` (checked by hand: with `followLinks: false` a Windows
+  junction lists as `Link`; task-15's `DirEntry.isLink` carries it), found repositories
+  published at once and then at most every 100 ms, and a generation number so a scan of another
+  directory (`up`, `goTo`, a drive) stops the old walk at its next step (it emits no report).
+- Joined onto stack A: a request for the directory already being walked still joins that walk
+  (A's `idle()` handle and its test); the old "scan again at the end" fold-in is gone. `idle()`
+  also waits for a cancelled walk to reach its next step.
+- Open, not done: `Isolate.run` for the walk. Streaming results and cancelling across an
+  isolate needs ports and `Isolate.kill`; the async walk already yields every 8 directories.
+  Worth doing if `browse.scan` timings on a home folder still show jank.
+- The walk reads through task-15's `DirectoryLister` (list and the `.git` check); the test uses
+  a blocking fake lister.
+- `Editors`: `Exists` is `Future<bool>` and defaults to the `DirectoryLister`; the Program Files
+  candidates were already listed through it (task-15). `test/browser_scan_test.dart` greps `lib/`
+  for `*Sync(`.

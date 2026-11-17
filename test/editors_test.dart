@@ -19,7 +19,7 @@ Editors machine({
 }) => Editors(
   prefs: prefs,
   which: (exe) async => path[exe],
-  exists: files.contains,
+  exists: (path) async => files.contains(path),
   gitEditor: () async => gitEditor,
   nvimQtCandidates: () async => nvimQt,
   env: Env(env),

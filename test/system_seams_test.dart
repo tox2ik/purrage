@@ -143,7 +143,7 @@ void main() {
   group('Editors.open', () {
     Editors with1(String command, FakeRunner runner) => Editors(
           which: (exe) async => exe == 'code' ? command : null,
-          exists: (_) => false,
+          exists: (_) async => false,
           gitEditor: () async => null,
           nvimQtCandidates: () async => const [],
           env: const Env({}),

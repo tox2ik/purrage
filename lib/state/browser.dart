@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -224,8 +225,15 @@ class RepoBrowser extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Set while a scan is running and a new one was asked for.
-  bool _again = false;
+  /// Bumped by every walk that starts; a walk whose number is no longer current
+  /// stops at its next step, so `up` or a drive click never waits for it.
+  int _generation = 0;
+
+  /// The directory the running walk started from.
+  String? _walking;
+
+  /// How often found repositories are published while a walk runs.
+  static const publishEvery = Duration(milliseconds: 100);
 
   static String _clean(String path) => canonicalPath(path);
 
@@ -290,7 +298,8 @@ class RepoBrowser extends ChangeNotifier {
 
   Future<void> scan() => _start(empty: false);
 
-  /// Rescan the current directory; a second request while one runs is folded in.
+  /// Rescan the current directory; a request while a walk of the same
+  /// directory runs joins that walk.
   Future<void> rescan() => _start(empty: true);
 
   /// The walk that is running, for [idle]; callers may start a scan without
@@ -298,15 +307,16 @@ class RepoBrowser extends ChangeNotifier {
   Future<void>? _running;
   bool _disposed = false;
 
-  /// A request while a walk runs is folded into that walk (it scans again at
-  /// the end), so the handle stays the running one.
+  /// A request for the directory a walk is already on joins that walk, so the
+  /// handle stays the running one. A request for another directory (`up`,
+  /// `goTo`, a drive) cancels the old walk and starts a new one at once.
   Future<void> _start({required bool empty}) {
     final running = _running;
-    if (scanning && running != null) {
-      _again = true;
-      return running;
-    }
-    return _running = UiTiming.instance.time('browse.scan', () => _scan(empty: empty));
+    if (scanning && running != null && _walking == directory) return running;
+    final generation = ++_generation;
+    final walk = UiTiming.instance.time('browse.scan', () => _scan(empty: empty, generation: generation));
+    // A cancelled walk ends at its next step; [idle] still waits for it.
+    return _running = running == null ? walk : Future.wait([running, walk]).then((_) {});
   }
 
   /// Completes when no scan is running any more.
@@ -330,12 +340,13 @@ class RepoBrowser extends ChangeNotifier {
     if (!_disposed) super.notifyListeners();
   }
 
-  Future<void> _scan({required bool empty}) async {
-    if (_disposed) return;
-    if (scanning) {
-      _again = true;
-      return;
-    }
+  Future<void> _scan({required bool empty, required int generation}) async {
+    // A newer walk owns `scanning` and the list from the moment it starts;
+    // this one just stops.
+    bool cancelled() => _disposed || generation != _generation;
+    if (cancelled()) return;
+    final root = directory;
+    _walking = root;
     scanning = true;
     if (empty) repos = const [];
     error = null;
@@ -348,10 +359,12 @@ class RepoBrowser extends ChangeNotifier {
     var skipped = 0;
     var appDataTrees = 0;
     var stopped = false;
+    Stopwatch? sincePublish;
 
-    final queue = <_Node>[_Node(directory, 0, maxDepth)];
-    while (queue.isNotEmpty && !_disposed) {
-      final node = queue.removeAt(0);
+    final queue = Queue<_Node>()..add(_Node(root, 0, maxDepth));
+    while (queue.isNotEmpty) {
+      if (cancelled()) return;
+      final node = queue.removeFirst();
       if (++visited > maxDirectories) {
         stopped = true;
         break;
@@ -360,10 +373,17 @@ class RepoBrowser extends ChangeNotifier {
       // One stat, before any listing: a folder that holds a `.git` is a hit, and
       // its own tree is not walked. Listing a directory is the expensive call.
       if (await _hasGit(node.path)) {
+        if (cancelled()) return;
         found.add(node.path);
+        // Show what is found while the walk goes on: the first hit at once,
+        // then at most every [publishEvery].
+        if (sincePublish == null || sincePublish.elapsed >= publishEvery) {
+          _publish(found);
+          sincePublish = Stopwatch()..start();
+        }
         // The browsed directory is the one exception: it is usually a repository
         // itself, and the checkouts to switch to live inside it.
-        if (node.path != directory) continue;
+        if (node.path != root) continue;
       }
       if (node.depth >= node.limit) continue;
 
@@ -374,6 +394,7 @@ class RepoBrowser extends ChangeNotifier {
       } on FileSystemException {
         continue;
       }
+      if (cancelled()) return;
       listing.stop();
       samples.add(ScanSample(path: node.path, took: listing.elapsed, entries: children.length));
 
@@ -408,6 +429,7 @@ class RepoBrowser extends ChangeNotifier {
     }
 
     clock.stop();
+    if (cancelled()) return;
     found.sort(_byColumns);
     repos = found;
     if (stopped) {
@@ -419,7 +441,7 @@ class RepoBrowser extends ChangeNotifier {
     final slowest = [...samples]..sort((a, b) => b.took.compareTo(a.took));
     final widest = [...samples]..sort((a, b) => b.entries.compareTo(a.entries));
     onReport?.call(ScanReport(
-      directory: directory,
+      directory: root,
       depth: maxDepth,
       visited: visited,
       found: found.length,
@@ -430,11 +452,12 @@ class RepoBrowser extends ChangeNotifier {
       stopped: stopped,
       appDataTrees: appDataTrees,
     ));
+  }
 
-    if (_again) {
-      _again = false;
-      await _scan(empty: false);
-    }
+  /// The repositories found so far, sorted, on screen while the walk goes on.
+  void _publish(List<String> found) {
+    repos = [...found]..sort(_byColumns);
+    notifyListeners();
   }
 
   /// A `.git` of its own: a folder for a clone, a file for a worktree or a

@@ -50,8 +50,9 @@ class EditorOption {
 /// Resolves a bare executable name to a full path, like `where` does.
 typedef Which = Future<String?> Function(String exe);
 
-/// True when an absolute path is a file that exists.
-typedef Exists = bool Function(String path);
+/// True when an absolute path is a file that exists. Async: detection runs when
+/// Settings opens, on the UI isolate, and must not block it on a stat.
+typedef Exists = Future<bool> Function(String path);
 
 /// Reads `git var GIT_EDITOR`, or null when git has no answer.
 typedef GitEditorReader = Future<String?> Function();
@@ -93,7 +94,7 @@ class Editors {
     DirectoryLister lister = const SystemDirectoryLister(),
   }) : _runner = runner,
        _which = which ?? whichWith(runner),
-       _exists = exists ?? _fileExists,
+       _exists = exists ?? lister.exists,
        _gitEditor = gitEditor ?? gitEditorWith(runner),
        _nvimQtCandidates =
            nvimQtCandidates ?? (() => nvimQtCandidatesIn(env ?? Env.system(), lister)),
@@ -307,7 +308,7 @@ class Editors {
   Future<bool> _resolvable(String exe) async {
     final name = _baseName(exe);
     if (name == 'vi' || name == 'vim') return await _which('vi') != null;
-    if (exe.contains('/') || exe.contains(r'\')) return _exists(exe);
+    if (exe.contains('/') || exe.contains(r'\')) return await _exists(exe);
     return await _which(exe) != null;
   }
 
@@ -320,7 +321,7 @@ class Editors {
     final onPath = await _which('nvim-qt');
     if (onPath != null) return onPath;
     for (final candidate in await _nvimQtCandidates()) {
-      if (_exists(candidate)) return candidate;
+      if (await _exists(candidate)) return candidate;
     }
     return null;
   }
@@ -366,14 +367,6 @@ class Editors {
       if (_isShim(value)) return value;
     }
     return found.first;
-  }
-
-  static bool _fileExists(String path) {
-    try {
-      return File(path).existsSync();
-    } on FileSystemException {
-      return false;
-    }
   }
 
   static GitEditorReader gitEditorWith(ProcessRunner runner) => () async {

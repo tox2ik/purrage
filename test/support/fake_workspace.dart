@@ -51,7 +51,7 @@ Workspace fakeWorkspace(
     editors: Editors(
       prefs: memory,
       which: (exe) async => which[exe],
-      exists: (_) => false,
+      exists: (_) async => false,
       gitEditor: () async => null,
       nvimQtCandidates: () async => const [],
       env: const Env({}),
