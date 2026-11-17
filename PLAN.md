@@ -185,7 +185,9 @@ The ignore pane becomes a list of `.gitignore` files, not one file:
 ## Keys (the Ops contract)
 
 - Modes: `Alt+1` Changes, `Alt+2` Browse, `Alt+3` Settings, `Alt+4` Console, `Alt+5` Help; `Alt+]` /
-  `Alt+[` cycle; `?` opens Help.
+  `Alt+[` cycle; `?` opens Help. The number is the mode's place in the `Mode` enum
+  (`lib/state/modes.dart`); the key map, the help table, the rail tooltips and every "(Alt+N)" in
+  a message are built from it.
 - Motion: Up/Down, `j`/`k`, and WASD from the one `motionBindings` list; never bound per handler.
 - Selection: `Shift`+Up/Down grows the highlight from the anchor, one row per press; `Ctrl+Enter`
   turns the cursor row's highlight on or off. The highlighted rows are what every action changes,
@@ -210,7 +212,8 @@ The ignore pane becomes a list of `.gitignore` files, not one file:
   as a control character or not at all.
 - Keys are `Shortcuts` / `Actions` / `Intent`s built from the binding lists in
   `lib/ui/app_keys.dart`; the Help table is generated from the same lists. Plain keys are
-  ignored while a text field has focus.
+  ignored while a text field has focus. `test/help_keys_test.dart` fails when a string in `lib/`
+  spells out an `Alt+<digit>` instead of asking `Mode`.
 
 ## Mouse
 
@@ -253,7 +256,7 @@ The ignore pane becomes a list of `.gitignore` files, not one file:
   `nav_keys.dart`.
 - `lib/state/` — `repo.dart` (the `git` package wrapper), `git_repo.dart` (the seam the UI talks to),
   `status.dart` (parser + model), `changes.dart` (sections, selection, optimistic actions),
-  `browser.dart` (repository scan), `failure.dart` + `console.dart` + `diagnostics.dart` (reporting),
+  `browser.dart` (repository scan), `modes.dart` (the modes and their keys), `failure.dart` + `console.dart` + `diagnostics.dart` (reporting),
   `notices.dart`, `ignore_rules.dart`, `ignore_files.dart`, `editors.dart`, `prefs.dart`.
 - Follow `~/ws/nvimos-ops/declarative_ui_guidelines.md`: ≤3 levels of inline layout nesting,
   `build` under 50 lines, lists from data with builders, no logic in event handlers.

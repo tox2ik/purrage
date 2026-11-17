@@ -131,7 +131,8 @@ class _OpenError extends StatelessWidget {
                 SelectableText(message),
                 const SizedBox(height: 16),
                 Text(
-                  'The Console mode (Alt+3) holds the details once a repository is open; '
+                  'The ${Mode.console.label} mode (${Mode.console.key}) holds the details '
+                  'once a repository is open; '
                   'this one failed before that, so it is in the log only.',
                   style: Theme.of(context).textTheme.labelSmall,
                 ),

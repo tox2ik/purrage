@@ -11,7 +11,7 @@ import 'mode_rail.dart';
 
 // --- intents ---------------------------------------------------------------
 
-/// Show one mode (`Alt+1` … `Alt+5`, `?`).
+/// Show one mode (`Alt+<n>` from [Mode.key], `?`).
 class ShowModeIntent extends Intent {
   const ShowModeIntent(this.mode);
   final Mode mode;
@@ -129,7 +129,7 @@ class Binding {
 /// Keys that work in every mode, even with a text field focused.
 final List<Binding> appBindings = [
   Binding(
-    'Alt+1 … Alt+${Mode.values.length}',
+    '${Mode.values.first.key} … ${Mode.values.last.key}',
     Mode.values.map((mode) => mode.label).join(', '),
     activators: [for (final mode in Mode.values) SingleActivator(mode.digit, alt: true)],
   ),

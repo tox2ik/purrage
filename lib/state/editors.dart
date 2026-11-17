@@ -8,6 +8,7 @@ library;
 
 import 'dart:io';
 
+import 'modes.dart';
 import 'prefs.dart';
 import 'system.dart';
 
@@ -190,7 +191,7 @@ class Editors {
     final option = await chosenOption();
     final command = option.command.trim();
     if (command.isEmpty) {
-      throw EditorException('No editor is set. Pick one in Settings (Alt+2).');
+      throw EditorException('No editor is set. Pick one in ${Mode.settings.named}.');
     }
     final tokens = expand(command, file: file, line: line);
     final exe = tokens.first;

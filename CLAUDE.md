@@ -105,7 +105,7 @@ operator (`& "$(FLUTTER)" …`) because a quoted `.bat` path is not a command in
 - The notice bar (`lib/state/notices.dart`, `lib/ui/notice_bar.dart`) pauses its countdown while
   the mouse is over it. Successes say nothing on screen; failures always speak, with the file and
   the reason.
-- The Console mode (`Alt+3`) is newest-first: time, code badge, action, summary, and an expandable
+- The Console mode (`Alt+4`) is newest-first: time, code badge, action, summary, and an expandable
   detail with the origin chain, parameters, `cwd` and the command line.
 - A refusal is a failure: "`es/x/` is already ignored by `/es/` in `.gitignore:135`". Never return
   silently — a no-op that looks like a success is the worst outcome.
@@ -118,9 +118,11 @@ operator (`& "$(FLUTTER)" …`) because a quoted `.bat` path is not a command in
   cursor row, `Ctrl`/`Shift` click do the same with the mouse, and **every action acts on the
   highlighted rows** (no silent fallback to the cursor). Rows that are chosen are tinted; the
   cursor keeps its accent bar.
-- Modes: `Alt+1` Changes, `Alt+2` Settings, `Alt+3` Console, `Alt+4` Help; `Alt+]` / `Alt+[` cycle.
-- A new key goes into three places: the handler, `keyTable` in `lib/ui/help_view.dart`, and the
-  Keys section of `PLAN.md`.
+- Modes: `Alt+1` Changes, `Alt+2` Browse, `Alt+3` Settings, `Alt+4` Console, `Alt+5` Help;
+  `Alt+]` / `Alt+[` cycle. The number lives only in the `Mode` enum (`lib/state/modes.dart`); the
+  key map, the help table, the rail tooltips and every "(Alt+N)" in a message are built from it.
+- A new key goes into two places: a `Binding` in `lib/ui/app_keys.dart` (the `Shortcuts` and the
+  Help table are both built from it) and the Keys section of `PLAN.md`.
 - The debug bar (bug button, bottom right) names the focused element by its role and shows the
   last key and mouse event.
 
