@@ -163,31 +163,35 @@ class Workspace extends ChangeNotifier {
     );
   }
 
-  /// Every add, untrack and ignore lands here: a failure is said, a success
-  /// gets a console row with the command line and the working directory.
-  void report(String action, {String? problem}) {
-    if (problem != null) {
-      say(problem, failure: _changes.lastFailure, action: action);
+  /// Every add, untrack, ignore and commit lands here, from that action's own
+  /// result: a failure is said, a success gets a console row with the command
+  /// line and the working directory.
+  void report(ActionResult result) {
+    final action = result.action;
+    final failure = result.failure;
+    if (failure != null) {
+      say(failure.summary, failure: failure, action: action);
       return;
     }
     final verb = switch (action) {
       'track' => 'tracked',
       'untrack' => 'stopped tracking',
       'ignore' => 'ignored',
+      'commit' => 'committed',
       _ => action,
     };
-    final changed = _changes.lastChanged;
+    final changed = result.changed;
     final files = changed == 1 ? '1 file' : '$changed files';
     console.add(
       ActionFailure.done(
         summary: '$verb $files',
         detail: [
-          'origin: ${_changes.lastOrigin ?? '-'}',
+          'origin: ${result.origin ?? '-'}',
           'changed: $changed',
           'cwd: ${_repo.path}',
-          if (_changes.lastCommand != null) 'command: ${_changes.lastCommand}',
+          if (result.command != null) 'command: ${result.command}',
         ].join('\n'),
-        origin: _changes.lastOrigin,
+        origin: result.origin,
       ),
       action: action,
     );
@@ -323,9 +327,9 @@ class Workspace extends ChangeNotifier {
   /// `i`: ignore the highlighted rows with their literal path in the root
   /// `.gitignore`. The rows leaving is the feedback; only a refusal speaks.
   Future<void> ignoreQuick() => _act('ignore', () async {
-        final problem = await _changes.ignoreQuick();
+        final result = await _changes.ignoreQuick();
         await reloadIgnorePane();
-        return problem;
+        return result;
       });
 
   /// Shift+I, step one: what the dialog should offer, or null when there is
@@ -361,21 +365,21 @@ class Workspace extends ChangeNotifier {
     bool stopTracking = false,
   }) =>
       _act('ignore', () async {
-        final problem = await _changes.ignoreSelected(
+        final result = await _changes.ignoreSelected(
           scope: scope,
           target: target,
           stopTracking: stopTracking,
         );
         await reloadIgnorePane();
-        return problem;
+        return result;
       });
 
-  /// Run one row action and report it; an exception becomes a notice.
-  Future<void> _act(String action, Future<String?> Function() run) async {
+  /// Run one row action and report its own result; an exception becomes a
+  /// notice.
+  Future<void> _act(String action, Future<ActionResult> Function() run) async {
     Diagnostics.enter('Changes: $action (${_changes.selectionCount} selected)');
     try {
-      final problem = await run();
-      report(action, problem: problem);
+      report(await run());
     } on Exception catch (error) {
       say(
         '$action failed',
@@ -395,13 +399,9 @@ class Workspace extends ChangeNotifier {
   Future<bool> commit(String summary) async {
     Diagnostics.enter('Changes: commit');
     try {
-      final ok = await _changes.commit(summary);
-      if (ok) {
-        report('commit');
-      } else {
-        say(_changes.error ?? 'commit failed', failure: _changes.lastFailure, action: 'commit');
-      }
-      return ok;
+      final result = await _changes.commit(summary);
+      report(result);
+      return result.ok;
     } finally {
       Diagnostics.leave();
     }

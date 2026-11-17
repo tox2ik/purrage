@@ -1,7 +1,7 @@
 ---
 id: task-7
 title: Serialize actions so a failure restores only its own rows
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-17'
 labels:
@@ -35,7 +35,26 @@ fields on `Changes`.
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 FakeRepo can hold a call open (a Completer) and fail it on demand
-- [ ] #2 a test runs track (held, then failed) and ignore, and the ignored row stays gone
-- [ ] #3 `lastCommand`/`lastOrigin`/`lastChanged` are replaced by a per-action result; report() reads it
+- [x] #1 FakeRepo can hold a call open (a Completer) and fail it on demand
+- [x] #2 a test runs track (held, then failed) and ignore, and the ignored row stays gone
+- [x] #3 `lastCommand`/`lastOrigin`/`lastChanged` are replaced by a per-action result; report() reads it
 <!-- AC:END -->
+
+## Notes
+
+- `Changes` queues the git step of every action (`_enqueue`); the optimistic change is applied
+  at once, outside the queue. A failure undoes its own `_RowChange` (rows it removed come back,
+  rows it added go) on the current list. `lastReport`, `lastFailure`, `lastCommand`,
+  `lastOrigin`, `lastChanged` and `ActionReport` are gone; `trackSelected`, `untrackSelected`,
+  `ignoreSelected`, `ignoreQuick` and `commit` return an `ActionResult` (action, failure,
+  origin, command, changed; `ok`, `problem`). `Workspace.report(result)` reads only that.
+- While another action is still queued, a finished one does not re-read `git status` (the answer
+  would not hold the queued change yet, and its row would flicker back); the last one does.
+- An ignore whose rule could not be written puts back that row only (before, it waited for the
+  refresh).
+- `commit` joins the queue too, so it runs after pending adds; a refused commit says why
+  (`the summary is empty`, `nothing is staged`) instead of a bare `commit failed`.
+- The `check-ignore` pre-check of an ignore runs before the optimistic step, outside the queue
+  (read-only). task-2 changes that code anyway (one `--stdin` call).
+- `FakeRepo.hold(method)` returns the completer; `failures`, `calls` were added in task-14.
+- Tests: `test/serialize_test.dart`.

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:purrage/state/git_repo.dart';
 import 'package:purrage/state/status.dart';
 
@@ -26,21 +28,31 @@ class FakeRepo implements GitRepo {
   /// Every method called, in order.
   final List<String> calls = [];
 
-  void _enter(String method) {
+  /// Calls held open until the test completes the completer: `complete()`
+  /// lets the call go on, `completeError(e)` fails it with `e`. One hold
+  /// holds the next call of that method only.
+  final Map<String, Completer<void>> holds = {};
+
+  /// Hold the next call of [method]; the test decides how it ends.
+  Completer<void> hold(String method) => holds[method] = Completer<void>();
+
+  Future<void> _enter(String method) async {
     calls.add(method);
+    final held = holds.remove(method);
+    if (held != null) await held.future;
     final failure = failures[method];
     if (failure != null) throw failure;
   }
 
   @override
   Future<List<StatusRow>> status() async {
-    _enter('status');
+    await _enter('status');
     return rows;
   }
 
   @override
   Future<void> track(Iterable<String> paths) async {
-    _enter('track');
+    await _enter('track');
     final staged = paths.toSet();
     lastCommand = 'git add -- ${paths.join(' ')}';
     rows = [
@@ -59,7 +71,7 @@ class FakeRepo implements GitRepo {
 
   @override
   Future<void> untrack(String path) async {
-    _enter('untrack');
+    await _enter('untrack');
     lastCommand = 'git rm --cached -- $path';
     rows = [
       for (final row in rows)
@@ -69,7 +81,7 @@ class FakeRepo implements GitRepo {
 
   @override
   Future<void> commit(String summary) async {
-    _enter('commit');
+    await _enter('commit');
     commits.add(summary);
     rows = const [];
   }
@@ -82,13 +94,13 @@ class FakeRepo implements GitRepo {
 
   @override
   Future<IgnoreMatch?> checkIgnore(String path) async {
-    _enter('checkIgnore');
+    await _enter('checkIgnore');
     return ignored[path];
   }
 
   @override
   Future<List<String>> gitignoreFiles() async {
-    _enter('gitignoreFiles');
+    await _enter('gitignoreFiles');
     return ['.gitignore'];
   }
 
@@ -103,7 +115,7 @@ class FakeRepo implements GitRepo {
 
   @override
   Future<IgnoreAppend> appendIgnoreLine(String absolutePath, String pattern) async {
-    _enter('appendIgnoreLine');
+    await _enter('appendIgnoreLine');
     writes.add('$absolutePath|$pattern');
     files[absolutePath] = '${files[absolutePath] ?? ''}$pattern\n';
     rows = [
@@ -124,7 +136,7 @@ class FakeRepo implements GitRepo {
 
   @override
   Future<void> createIgnoreFile(String absolutePath) async {
-    _enter('createIgnoreFile');
+    await _enter('createIgnoreFile');
     files.putIfAbsent(absolutePath, () => '# Purrage\n');
   }
 }

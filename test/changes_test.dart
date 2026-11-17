@@ -14,7 +14,7 @@ void main() {
       await changes.load();
       expect(changes.visible.single.path, 'notes.md');
 
-      final problem = await changes.ignoreQuick();
+      final problem = (await changes.ignoreQuick()).problem;
       expect(problem, isNull, reason: problem);
 
       final text = await File('${temp.path}/.gitignore').readAsString();
@@ -33,7 +33,7 @@ void main() {
       final nested = targets.firstWhere((t) => t.kind == IgnoreTargetKind.folderGitignore);
       expect(nested.path, endsWith('lib/generated/.gitignore'));
 
-      final problem = await changes.ignoreSelected(scope: IgnoreScope.file, target: nested);
+      final problem = (await changes.ignoreSelected(scope: IgnoreScope.file, target: nested)).problem;
       expect(problem, isNull, reason: problem);
 
       final text = await File(nested.path).readAsString();
@@ -47,8 +47,8 @@ void main() {
       final changes = await temp.changes();
       await changes.load();
       final root = changes.rootTarget;
-      final problem = await changes.ignoreSelected(scope: IgnoreScope.extension, target: root);
-      expect(problem, isNotNull);
+      final result = await changes.ignoreSelected(scope: IgnoreScope.extension, target: root);
+      expect(result.ok, isFalse);
       final text = await File('${temp.path}/.gitignore').readAsString();
       expect(text, isNot(contains('*.')));
     });

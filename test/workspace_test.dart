@@ -204,7 +204,7 @@ void main() {
       expect(lastRow(workspace).$1, startsWith('commit'));
 
       expect(await workspace.commit('again'), isFalse, reason: 'nothing staged any more');
-      expect(workspace.notices.current?.message, 'commit failed');
+      expect(workspace.notices.current?.message, 'nothing is staged');
     });
 
     test('a git failure is said with git\'s words', () async {

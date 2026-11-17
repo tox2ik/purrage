@@ -50,16 +50,28 @@ class Changes extends ChangeNotifier {
   /// turned everything off with Ctrl+Enter.
   List<StatusRow> get actionRows => selectedRows;
 
-  /// What the last action did, for the one message the UI shows.
-  ActionReport? lastReport;
+  /// The git steps of the actions, one at a time: each starts when the one
+  /// before it has ended. The screen does not wait for the queue; only git
+  /// does.
+  Future<void> _queue = Future<void>.value();
 
-  /// The last failure, with its origin, code and detail, for the Console mode.
-  ActionFailure? lastFailure;
+  /// Actions whose git step has not ended yet. While one is pending, a
+  /// finished one does not re-read `git status`: the answer would not have the
+  /// pending change in it yet, and the row would flicker back.
+  int _pending = 0;
 
-  /// How the last action ran, for the console's success line.
-  String? lastCommand;
-  String? lastOrigin;
-  int lastChanged = 0;
+  /// Run [step] after every git step queued before it.
+  Future<ActionResult> _enqueue(Future<ActionResult> Function() step) {
+    _pending++;
+    final run = _queue.then((_) => step()).whenComplete(() => _pending--);
+    _queue = run.then<void>((_) {}, onError: (Object _) {});
+    return run;
+  }
+
+  /// The truth from git once the last queued action has ended.
+  Future<void> _settle() async {
+    if (_pending <= 1) await refresh();
+  }
 
   /// Rows whose folder is a repository of its own, and the ones already asked
   /// about, so a reload does not stat the same path again.
@@ -308,95 +320,139 @@ class Changes extends ChangeNotifier {
 
   /// Stage the highlighted rows, at once, then let git confirm.
   ///
-  /// The rows move to Staged before `git add` runs; on a failure the previous
-  /// list comes back and the message says why. That is the whole point of the
-  /// app feeling instant: the click does not wait on a subprocess.
-  Future<String?> trackSelected() async {
+  /// The rows move to Staged before `git add` runs; on a failure exactly that
+  /// move is undone (other actions' rows stay as they are) and the result says
+  /// why. That is the whole point of the app feeling instant: the click does
+  /// not wait on a subprocess.
+  Future<ActionResult> trackSelected() async {
+    const origin = 'Changes.trackSelected -> Repo.track -> git add';
     final rows = actionRows;
-    if (rows.isEmpty) return 'nothing selected';
+    if (rows.isEmpty) return ActionResult.refused('track', 'nothing selected', origin);
     final usable = rows.where((row) => !row.isConflict).toList();
-    if (usable.isEmpty) return 'a conflict offers only ignore and open';
+    if (usable.isEmpty) {
+      return ActionResult.refused('track', 'a conflict offers only ignore and open', origin);
+    }
 
-    final before = _rows;
-    final paths = usable.map((row) => row.path).toSet();
-    final next = [
-      for (final row in _rows)
-        if (!paths.contains(row.path) || row.section == Section.staged) row,
-      for (final row in usable)
-        if (row.section != Section.staged)
-          StatusRow(section: Section.staged, kind: row.kind, path: row.path, code: row.code),
-    ];
-    _setRows(next);
+    // A changed row joins its staged twin; a staged row stays where it is.
+    final moving = usable.where((row) => !row.isStaged).toList();
+    final stagedPaths = {for (final row in _rows) if (row.isStaged) row.path};
+    final change = _RowChange(
+      removed: moving,
+      added: [
+        for (final row in moving)
+          if (!stagedPaths.contains(row.path))
+            StatusRow(section: Section.staged, kind: row.kind, path: row.path, code: row.code),
+      ],
+    );
+    _apply(change);
 
     final pathList = usable.map((row) => row.path).toList();
-    lastOrigin = 'Changes.trackSelected -> Repo.track -> git add';
-    lastCommand = 'git add -- ${pathList.take(8).join(' ')}'
+    final command = 'git add -- ${pathList.take(8).join(' ')}'
         '${pathList.length > 8 ? ' ...(${pathList.length} paths)' : ''}';
-    lastChanged = pathList.length;
-    try {
-      await repo.track(pathList);
-    } on Exception catch (error) {
-      _setRows(before);
-      lastFailure = ActionFailure.fromError(
-        error,
-        origin: 'Changes.trackSelected -> Repo.track -> git add',
-        summary: 'could not stage ${pathList.length} file(s)',
-        params: {'selected': rows.length, 'cwd': repo.path, 'first': pathList.first},
-        command: 'git add -- ${pathList.take(5).join(' ')}',
-      );
-      return lastFailure!.summary;
-    }
-    await refresh();
-    return null;
+    return _enqueue(() async {
+      try {
+        await repo.track(pathList);
+      } on Exception catch (error) {
+        _undo(change);
+        return ActionResult.failed(
+          'track',
+          ActionFailure.fromError(
+            error,
+            origin: origin,
+            summary: 'could not stage ${pathList.length} file(s)',
+            params: {'selected': rows.length, 'cwd': repo.path, 'first': pathList.first},
+            command: command,
+          ),
+        );
+      }
+      await _settle();
+      return ActionResult.done('track', origin: origin, command: command, changed: pathList.length);
+    });
   }
 
   /// Stop tracking the highlighted rows, at once, then let git confirm.
-  Future<String?> untrackSelected() async {
-    final rows = actionRows.where((row) => !row.isConflict && row.section != Section.untracked);
-    if (rows.isEmpty) return 'nothing to stop tracking';
+  Future<ActionResult> untrackSelected() async {
+    const origin = 'Changes.untrackSelected -> Repo.untrack -> git rm --cached';
+    final rows = actionRows
+        .where((row) => !row.isConflict && row.section != Section.untracked)
+        .toList();
+    if (rows.isEmpty) return ActionResult.refused('untrack', 'nothing to stop tracking', origin);
 
-    final before = _rows;
     final paths = rows.map((row) => row.path).toSet();
-    _setRows([for (final row in _rows) if (!paths.contains(row.path)) row]);
+    final change = _RowChange(removed: [for (final row in _rows) if (paths.contains(row.path)) row]);
+    _apply(change);
 
-    lastOrigin = 'Changes.untrackSelected -> Repo.untrack -> git rm --cached';
-    lastCommand = 'git rm --cached -- ${rows.take(8).map((row) => row.path).join(' ')}';
-    lastChanged = rows.length;
-    try {
-      for (final row in rows) {
-        await repo.untrack(row.path);
+    final planned = 'git rm --cached -- ${rows.take(8).map((row) => row.path).join(' ')}';
+    return _enqueue(() async {
+      try {
+        for (final row in rows) {
+          await repo.untrack(row.path);
+        }
+      } on Exception catch (error) {
+        _undo(change);
+        return ActionResult.failed(
+          'untrack',
+          ActionFailure.fromError(
+            error,
+            origin: origin,
+            summary: 'could not stop tracking ${rows.length} file(s)',
+            params: {'rows': rows.length, 'cwd': repo.path},
+            command: planned,
+          ),
+        );
       }
-      // A gitlink needed `-f`; report the command that actually ran.
-      lastCommand = repo.lastCommand ?? lastCommand;
-    } on Exception catch (error) {
-      _setRows(before);
-      lastFailure = ActionFailure.fromError(
-        error,
-        origin: 'Changes.untrackSelected -> Repo.untrack -> git rm --cached',
-        summary: 'could not stop tracking ${rows.length} file(s)',
-        params: {'rows': rows.length, 'cwd': repo.path},
-        command: 'git rm --cached -- ${rows.take(5).map((row) => row.path).join(' ')}',
-      );
-      return lastFailure!.summary;
-    }
-    await refresh();
-    return null;
+      // A gitlink needed `-f`; report the command that actually ran. Only this
+      // action runs git now, so the repository's last command is its own.
+      final command = repo.lastCommand ?? planned;
+      await _settle();
+      return ActionResult.done('untrack', origin: origin, command: command, changed: rows.length);
+    });
   }
 
-  /// Commit the index with one summary line.
-  Future<bool> commit(String summary) async {
+  /// Commit the index with one summary line, after every queued action.
+  Future<ActionResult> commit(String summary) async {
+    const origin = 'Changes.commit -> Repo.commit -> git commit';
     final message = summary.trim();
-    if (message.isEmpty || !canCommit) return false;
-    lastOrigin = 'Changes.commit -> Repo.commit -> git commit';
-    lastCommand = 'git commit -m ${message.replaceAll('\n', ' ')}';
-    lastChanged = stagedCount;
-    await _run(
-      () => repo.commit(message),
-      origin: 'Changes.commit -> Repo.commit -> git commit',
-      command: 'git commit -m <summary>',
-    );
-    return _error == null;
+    if (message.isEmpty) return ActionResult.refused('commit', 'the summary is empty', origin);
+    if (!canCommit) return ActionResult.refused('commit', 'nothing is staged', origin);
+    final changed = stagedCount;
+    _busy = true;
+    _error = null;
+    notifyListeners();
+    return _enqueue(() async {
+      try {
+        await repo.commit(message);
+      } on Exception catch (error) {
+        _error = error is GitException ? error.message : error.toString();
+        return ActionResult.failed(
+          'commit',
+          ActionFailure.fromError(
+            error,
+            origin: origin,
+            params: {'cwd': repo.path},
+            command: 'git commit -m <summary>',
+          ),
+        );
+      } finally {
+        _busy = false;
+        notifyListeners();
+      }
+      await load();
+      return ActionResult.done(
+        'commit',
+        origin: origin,
+        command: 'git commit -m ${message.replaceAll('\n', ' ')}',
+        changed: changed,
+      );
+    });
   }
+
+  /// Put [change] on screen.
+  void _apply(_RowChange change) => _setRows(change.applyTo(_rows));
+
+  /// Take [change] back from the rows as they are now, leaving every other
+  /// action's change in place.
+  void _undo(_RowChange change) => _setRows(change.undoFrom(_rows));
 
   /// The ignore files to offer, narrowest first, for the cursor row.
   Future<List<IgnoreTarget>> ignoreTargets() async {
@@ -464,20 +520,21 @@ class Changes extends ChangeNotifier {
 
   /// One key, no questions: ignore every row the action covers with its literal
   /// path written to the root `.gitignore` (`/dir/file.ext`).
-  Future<String?> ignoreQuick() =>
+  Future<ActionResult> ignoreQuick() =>
       ignoreSelected(scope: IgnoreScope.file, target: rootTarget);
 
   /// Write an ignore rule for every highlighted row, removing them at once.
   ///
-  /// Returns null when every rule was written, or a sentence naming what was
-  /// skipped and why. Rows whose rule failed come back with the next refresh.
-  Future<String?> ignoreSelected({
+  /// The result is a success when every rule was written, or a failure whose
+  /// summary names what was skipped and why. Rows whose rule failed come back.
+  Future<ActionResult> ignoreSelected({
     required IgnoreScope scope,
     required IgnoreTarget target,
     bool stopTracking = false,
   }) async {
+    const origin = 'Changes.ignoreSelected -> IgnoreRules.pattern -> Repo.appendIgnoreLine';
     final rows = actionRows;
-    if (rows.isEmpty) return 'nothing selected';
+    if (rows.isEmpty) return ActionResult.refused('ignore', 'nothing selected', origin);
     final skipped = <String>[];
     final plans = <_IgnorePlan>[];
     for (final row in rows) {
@@ -500,79 +557,84 @@ class Changes extends ChangeNotifier {
       plans.add(_IgnorePlan(row: row, target: rowTarget, pattern: pattern));
     }
 
-    if (plans.isEmpty) {
-      if (skipped.isEmpty) {
-        lastFailure = null;
-        return 'nothing selected';
-      }
-      // Every row was refused: keep the reason, the origin and the parameters so
-      // the console says where this came from instead of "Shell.say".
-      final summary = skipped.take(3).join('; ');
-      lastFailure = ActionFailure.fromSkips(
-        origin: 'Changes.ignoreSelected -> Repo.checkIgnore',
-        summary: summary,
-        skipped: skipped,
-        params: {
+    Map<String, Object?> params(int written) => {
           'scope': scope.name,
           'target': _shortSource(target.path),
           'stopTracking': stopTracking,
           'rows': rows.length,
-          'written': 0,
-        },
+          'written': written,
+        };
+
+    if (plans.isEmpty) {
+      if (skipped.isEmpty) return ActionResult.refused('ignore', 'nothing selected', origin);
+      // Every row was refused: keep the reason, the origin and the parameters so
+      // the console says where this came from instead of "Workspace.say".
+      return ActionResult.failed(
+        'ignore',
+        ActionFailure.fromSkips(
+          origin: 'Changes.ignoreSelected -> Repo.checkIgnore',
+          summary: skipped.take(3).join('; '),
+          skipped: skipped,
+          params: params(0),
+        ),
       );
-      return summary;
     }
 
     // They leave the list now; git gets the files written right after.
     final paths = plans.map((plan) => plan.row.path).toSet();
-    _setRows([
-      for (final row in _rows)
-        if (!paths.contains(row.path)) row,
-    ]);
+    _apply(_RowChange(removed: [for (final row in _rows) if (paths.contains(row.path)) row]));
 
-    var added = 0;
-    for (final plan in plans) {
-      try {
-        final appended = await repo.appendIgnoreLine(plan.target.path, plan.pattern);
-        if (appended == IgnoreAppend.duplicate) {
-          skipped.add('${plan.row.path}: `${plan.pattern}` already there');
+    final command = plans
+            .map((plan) => '${_shortSource(plan.target.path)} += ${plan.pattern}')
+            .take(8)
+            .join('\n') +
+        (plans.length > 8 ? '\n...(${plans.length} rules)' : '');
+    return _enqueue(() async {
+      var added = 0;
+      for (final plan in plans) {
+        final problem = await _writeRule(plan, stopTracking: stopTracking);
+        if (problem == null) {
+          added++;
           continue;
         }
-        if (stopTracking) await repo.untrack(plan.row.path);
-        added++;
-      } on GitException catch (error) {
-        skipped.add('${plan.row.path}: ${error.message}');
-      } on FileSystemException catch (error) {
-        skipped.add('${plan.row.path}: cannot write ${plan.target.path} '
-            '(${_osText(error)})');
+        skipped.add(problem);
+        // This row's rule was not written: it comes back, and only it.
+        _undo(_RowChange(removed: [plan.row]));
       }
+      await _settle();
+      if (skipped.isEmpty) {
+        return ActionResult.done('ignore', origin: origin, command: command, changed: added);
+      }
+      final head = skipped.take(3).join('; ');
+      final more = skipped.length > 3 ? ' (+${skipped.length - 3} more)' : '';
+      return ActionResult.failed(
+        'ignore',
+        ActionFailure.fromSkips(
+          origin: origin,
+          summary: 'ignored $added, skipped ${skipped.length}: $head$more',
+          skipped: skipped,
+          params: params(added),
+        ),
+        command: command,
+        changed: added,
+      );
+    });
+  }
+
+  /// Write one planned rule; null when it was written, else why not.
+  Future<String?> _writeRule(_IgnorePlan plan, {required bool stopTracking}) async {
+    try {
+      final appended = await repo.appendIgnoreLine(plan.target.path, plan.pattern);
+      if (appended == IgnoreAppend.duplicate) {
+        return '${plan.row.path}: `${plan.pattern}` already there';
+      }
+      if (stopTracking) await repo.untrack(plan.row.path);
+      return null;
+    } on GitException catch (error) {
+      return '${plan.row.path}: ${error.message}';
+    } on FileSystemException catch (error) {
+      return '${plan.row.path}: cannot write ${plan.target.path} (${_osText(error)})';
     }
-    await refresh();
-    lastReport = ActionReport(done: added, skipped: skipped, note: _shortSource(target.path));
-    lastChanged = added;
-    lastOrigin = 'Changes.ignoreSelected -> IgnoreRules.pattern -> Repo.appendIgnoreLine';
-    lastCommand = plans
-        .map((plan) => '${_shortSource(plan.target.path)} += ${plan.pattern}')
-        .take(8)
-        .join('\n') +
-        (plans.length > 8 ? '\n...(${plans.length} rules)' : '');
-    if (skipped.isEmpty) return null;
-    final head = skipped.take(3).join('; ');
-    final more = skipped.length > 3 ? ' (+${skipped.length - 3} more)' : '';
-    final summary = 'ignored $added, skipped ${skipped.length}: $head$more';
-    lastFailure = ActionFailure.fromSkips(
-      origin: 'Changes.ignoreSelected -> IgnoreRules.pattern -> Repo.appendIgnoreLine',
-      summary: summary,
-      skipped: skipped,
-      params: {
-        'scope': scope.name,
-        'target': _shortSource(target.path),
-        'stopTracking': stopTracking,
-        'rows': rows.length,
-        'written': added,
-      },
-    );
-    return summary;
   }
 
   /// Replace the list with [rows], keeping the filter, the cursor and the
@@ -625,33 +687,6 @@ class Changes extends ChangeNotifier {
     return code == null ? detail : '$detail, error $code';
   }
 
-  Future<void> _run(
-    Future<void> Function() action, {
-    required String origin,
-    String? command,
-  }) async {
-    if (_busy) return;
-    _busy = true;
-    _error = null;
-    notifyListeners();
-    try {
-      await action();
-    } on Exception catch (error) {
-      _error = error is GitException ? error.message : error.toString();
-      lastFailure = ActionFailure.fromError(
-        error,
-        origin: origin,
-        params: {'cwd': repo.path},
-        command: command,
-      );
-      _busy = false;
-      notifyListeners();
-      return;
-    }
-    _busy = false;
-    notifyListeners();
-    await load();
-  }
 }
 
 /// One rule the ignore action is about to write.
@@ -663,26 +698,94 @@ class _IgnorePlan {
   final String pattern;
 }
 
-/// What one action changed, in the words the UI shows.
-class ActionReport {
-  const ActionReport({required this.done, this.skipped = const [], this.note});
+/// One action's optimistic change to the list: the rows it took out and the
+/// rows it put in. Undoing it touches those rows only, so a failure cannot
+/// undo another action's change.
+class _RowChange {
+  const _RowChange({this.removed = const [], this.added = const []});
 
-  /// Rows the action actually changed.
-  final int done;
+  final List<StatusRow> removed;
+  final List<StatusRow> added;
 
-  /// One sentence per row that was left alone, with the reason.
-  final List<String> skipped;
+  static String _key(StatusRow row) => '${row.section.index}\u0000${row.path}';
 
-  /// Where it happened: the ignore file written, for the ignore actions.
-  final String? note;
-
-  /// `tracked 3 files in .gitignore, skipped 1: a.log already there`.
-  String message(String verb) {
-    final files = done == 1 ? '1 file' : '$done files';
-    final where = note == null ? '' : ' in $note';
-    final head = done == 0 ? 'nothing changed' : '$verb $files$where';
-    if (skipped.isEmpty) return head;
-    final more = skipped.length > 3 ? ' (+${skipped.length - 3} more)' : '';
-    return '$head, skipped ${skipped.length}: ${skipped.take(3).join('; ')}$more';
+  List<StatusRow> applyTo(List<StatusRow> rows) {
+    final gone = {for (final row in removed) _key(row)};
+    return [
+      for (final row in rows)
+        if (!gone.contains(_key(row))) row,
+      ...added,
+    ];
   }
+
+  List<StatusRow> undoFrom(List<StatusRow> rows) {
+    final mine = {for (final row in added) _key(row)};
+    final kept = [
+      for (final row in rows)
+        if (!mine.contains(_key(row))) row,
+    ];
+    final present = {for (final row in kept) _key(row)};
+    return [
+      ...kept,
+      for (final row in removed)
+        if (!present.contains(_key(row))) row,
+    ];
+  }
+}
+
+/// What one action did, returned by that action alone: the console line and
+/// the notice are built from it, never from fields a later action may have
+/// overwritten.
+class ActionResult {
+  const ActionResult._({
+    required this.action,
+    this.failure,
+    this.origin,
+    this.command,
+    this.changed = 0,
+  });
+
+  /// It worked: [changed] rows, by [command].
+  const ActionResult.done(
+    String action, {
+    required String origin,
+    String? command,
+    required int changed,
+  }) : this._(action: action, origin: origin, command: command, changed: changed);
+
+  /// It failed, or was refused, with the full story in [failure].
+  ActionResult.failed(String action, ActionFailure failure, {String? command, int changed = 0})
+      : this._(
+          action: action,
+          failure: failure,
+          origin: failure.origin,
+          command: command,
+          changed: changed,
+        );
+
+  /// Nothing to do, said in one sentence: "nothing selected".
+  ActionResult.refused(String action, String why, String origin)
+      : this._(
+          action: action,
+          origin: origin,
+          failure: ActionFailure(
+            summary: why,
+            detail: 'origin: $origin\nrefused: $why',
+            origin: origin,
+          ),
+        );
+
+  /// `track`, `untrack`, `ignore`, `commit`.
+  final String action;
+
+  /// Null when it worked.
+  final ActionFailure? failure;
+  final String? origin;
+  final String? command;
+  final int changed;
+
+  bool get ok => failure == null;
+
+  /// The sentence the notice shows, or null for a success.
+  String? get problem => failure?.summary;
 }

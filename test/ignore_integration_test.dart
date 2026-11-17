@@ -38,7 +38,7 @@ void main() {
     await changes.load();
 
     expect(changes.visible.single.path, 'notes.md');
-    expect(await changes.ignoreQuick(), isNull);
+    expect((await changes.ignoreQuick()).problem, isNull);
 
     final text = await File('${temp.path}/.gitignore').readAsString();
     expect(text, contains('\n/notes.md\n'));
@@ -61,7 +61,7 @@ void main() {
     expect(nested.path, endsWith('lib/generated/.gitignore'));
     expect(nested.path.contains(r'\'), isFalse);
 
-    expect(await changes.ignoreSelected(scope: IgnoreScope.file, target: nested), isNull);
+    expect((await changes.ignoreSelected(scope: IgnoreScope.file, target: nested)).problem, isNull);
 
     final nestedFile = File('${temp.path}/lib/generated/.gitignore');
     expect(await nestedFile.exists(), isTrue);
@@ -96,7 +96,7 @@ void main() {
     await changes.click(second, ctrl: true);
     expect(changes.selectionCount, 2);
 
-    expect(await changes.ignoreQuick(), isNull);
+    expect((await changes.ignoreQuick()).problem, isNull);
 
     final text = await File('${temp.path}/.gitignore').readAsString();
     expect(text, contains('\n/a.log\n'));
@@ -122,7 +122,7 @@ void main() {
     expect(changes.visible.single.section.name, 'changed');
 
     final root = changes.rootTarget;
-    expect(await changes.ignoreSelected(scope: IgnoreScope.file, target: root), isNull);
+    expect((await changes.ignoreSelected(scope: IgnoreScope.file, target: root)).problem, isNull);
 
     // The rule exists, and git still tracks the file: ignoring alone changes
     // nothing for a tracked path.
@@ -145,7 +145,8 @@ void main() {
     await changes.load();
     final root = changes.rootTarget;
     expect(
-      await changes.ignoreSelected(scope: IgnoreScope.file, target: root, stopTracking: true),
+      (await changes.ignoreSelected(scope: IgnoreScope.file, target: root, stopTracking: true))
+          .problem,
       isNull,
     );
 
@@ -182,7 +183,7 @@ void main() {
 
     final first = changes.visible.indexWhere((row) => row.path == 'odd[1].txt');
     await changes.click(first);
-    expect(await changes.ignoreQuick(), isNull);
+    expect((await changes.ignoreQuick()).problem, isNull);
 
     final text = await File('${temp.path}/.gitignore').readAsString();
     expect(text, contains(r'/odd\[1\].txt'));
