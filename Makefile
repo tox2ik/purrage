@@ -41,7 +41,7 @@ build: ## release build of the Windows app
 ##@ checks
 
 test: ## the whole test suite, then check that %TEMP% has no new purrage_* folder
-	$$count = { @(Get-ChildItem $$env:TEMP -Directory -Filter 'purrage_*').Count }; $$before = & $$count; & "$(FLUTTER)" test --timeout 22s; $$code = $$LASTEXITCODE; $$after = & $$count; if ($$after -gt $$before) { Write-Output ('    left {0} purrage_* folder(s) in %TEMP%' -f ($$after - $$before)); exit 1 }; Write-Output ('unchanged {0} purrage_* folder(s) in %TEMP%' -f $$after); exit $$code
+	@$$count = { @(Get-ChildItem $$env:TEMP -Directory -Filter 'purrage_*').Count }; $$before = & $$count; & "$(FLUTTER)" test --timeout 22s; $$code = $$LASTEXITCODE; $$after = & $$count; if ($$after -gt $$before) { Write-Output ('    left {0} purrage_* folder(s) in %TEMP%' -f ($$after - $$before)); exit 1 }; Write-Output ('unchanged {0} purrage_* folder(s) in %TEMP%' -f $$after); exit $$code
 
 analyze: ## static analysis
 	& "$(FLUTTER)" analyze

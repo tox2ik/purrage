@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:purrage/state/editors.dart';
 import 'package:purrage/state/prefs.dart';
+import 'package:purrage/state/system.dart';
 
 /// A fake machine: `which` answers from [path], `exists` from [files], and the
 /// environment is just a map. No process runs and no file is read unless a test
@@ -20,8 +21,8 @@ Editors machine({
   which: (exe) async => path[exe],
   exists: files.contains,
   gitEditor: () async => gitEditor,
-  nvimQtCandidates: () => nvimQt,
-  environment: env,
+  nvimQtCandidates: () async => nvimQt,
+  env: Env(env),
 );
 
 List<String> ids(List<EditorOption> options) =>

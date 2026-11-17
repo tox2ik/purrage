@@ -9,6 +9,7 @@ library;
 import 'dart:io';
 
 import 'prefs.dart';
+import 'system.dart';
 
 /// A failure the user can act on, with no stack trace in the message.
 class EditorException implements Exception {
@@ -79,25 +80,32 @@ const List<KnownEditor> knownEditors = [
 /// Detection and launch. Every side effect is injectable, so the precedence
 /// table is a plain unit test with no processes and no filesystem.
 class Editors {
+  /// [runner], [env] and [lister] are the machine; the function parameters
+  /// replace one step each, for the precedence tests.
   Editors({
     this.prefs,
     Which? which,
     Exists? exists,
     GitEditorReader? gitEditor,
-    List<String> Function()? nvimQtCandidates,
-    Map<String, String>? environment,
-  }) : _which = which ?? _systemWhich,
+    Future<List<String>> Function()? nvimQtCandidates,
+    Env? env,
+    ProcessRunner runner = const SystemProcessRunner(),
+    DirectoryLister lister = const SystemDirectoryLister(),
+  }) : _runner = runner,
+       _which = which ?? whichWith(runner),
        _exists = exists ?? _fileExists,
-       _gitEditor = gitEditor ?? _systemGitEditor,
-       _nvimQtCandidates = nvimQtCandidates ?? _windowsNvimQtCandidates,
-       _environment = environment ?? Platform.environment;
+       _gitEditor = gitEditor ?? gitEditorWith(runner),
+       _nvimQtCandidates =
+           nvimQtCandidates ?? (() => nvimQtCandidatesIn(env ?? Env.system(), lister)),
+       _env = env ?? Env.system();
 
   final Prefs? prefs;
+  final ProcessRunner _runner;
   final Which _which;
   final Exists _exists;
   final GitEditorReader _gitEditor;
-  final List<String> Function() _nvimQtCandidates;
-  final Map<String, String> _environment;
+  final Future<List<String>> Function() _nvimQtCandidates;
+  final Env _env;
 
   /// Every editor found, best first. A saved choice always leads; Notepad is
   /// the last resort; when literally nothing resolves the single entry is
@@ -132,14 +140,14 @@ class Editors {
     final visual = await _fromCommand(
       'visual',
       'VISUAL',
-      _environment['VISUAL'],
+      _env['VISUAL'],
     );
     if (visual != null) _append(found, visual);
 
     final editor = await _fromCommand(
       'editor',
       'EDITOR',
-      _environment['EDITOR'],
+      _env['EDITOR'],
     );
     if (editor != null) _append(found, editor);
 
@@ -190,15 +198,9 @@ class Editors {
       if (_isShim(exe)) {
         // A `.cmd` or `.bat` shim needs `cmd /c start` to open a window of its
         // own; `start` takes an empty title before the command.
-        await Process.start('cmd', [
-          '/c',
-          'start',
-          '',
-          exe,
-          ...args,
-        ], mode: ProcessStartMode.detached);
+        await _runner.startDetached('cmd', ['/c', 'start', '', exe, ...args]);
       } else {
-        await Process.start(exe, args, mode: ProcessStartMode.detached);
+        await _runner.startDetached(exe, args);
       }
     } on ProcessException catch (error) {
       throw EditorException(
@@ -317,7 +319,7 @@ class Editors {
   Future<String?> _nvimQtPath() async {
     final onPath = await _which('nvim-qt');
     if (onPath != null) return onPath;
-    for (final candidate in _nvimQtCandidates()) {
+    for (final candidate in await _nvimQtCandidates()) {
       if (_exists(candidate)) return candidate;
     }
     return null;
@@ -338,33 +340,32 @@ class Editors {
   /// `where` can find several matches (the exe, then a `.bat` wrapper earlier on
   /// PATH). A `.bat`/`.cmd` is started through `cmd /c start`, which shows a
   /// console window, so a real `.exe` is preferred whenever one is listed.
-  static Future<String?> _systemWhich(String exe) async {
+  static Which whichWith(ProcessRunner runner) => (exe) async {
     try {
-      final result = await Process.run('where', [exe], runInShell: false);
-      if (result.exitCode != 0) return null;
-      final found = (result.stdout as String)
-          .split(RegExp(r'\r?\n'))
-          .map((value) => value.trim())
-          .where((value) => value.isNotEmpty)
-          .toList();
-      if (found.isEmpty) return null;
-      // `.exe` first, then a shim Windows can start through cmd, then anything.
-      final exePath = found.firstWhere(
-        (value) => value.toLowerCase().endsWith('.exe'),
-        orElse: () => '',
-      );
-      if (exePath.isNotEmpty) return exePath;
-      final shim = found.firstWhere(
-        (value) {
-          final lower = value.toLowerCase();
-          return lower.endsWith('.cmd') || lower.endsWith('.bat');
-        },
-        orElse: () => '',
-      );
-      return shim.isNotEmpty ? shim : found.first;
+      final result = await runner.run('where', [exe]);
+      if (!result.ok) return null;
+      return pickFromWhere(result.stdout);
     } on ProcessException {
       return null;
     }
+  };
+
+  /// The best of `where`'s lines: `.exe` first, then a shim Windows can start
+  /// through cmd, then anything; null for no line.
+  static String? pickFromWhere(String output) {
+    final found = output
+        .split(RegExp(r'\r?\n'))
+        .map((value) => value.trim())
+        .where((value) => value.isNotEmpty)
+        .toList();
+    if (found.isEmpty) return null;
+    for (final value in found) {
+      if (value.toLowerCase().endsWith('.exe')) return value;
+    }
+    for (final value in found) {
+      if (_isShim(value)) return value;
+    }
+    return found.first;
   }
 
   static bool _fileExists(String path) {
@@ -375,38 +376,31 @@ class Editors {
     }
   }
 
-  static Future<String?> _systemGitEditor() async {
+  static GitEditorReader gitEditorWith(ProcessRunner runner) => () async {
     try {
-      final result = await Process.run('git', [
-        'var',
-        'GIT_EDITOR',
-      ], runInShell: false);
-      if (result.exitCode != 0) return null;
-      final out = (result.stdout as String).trim();
+      final result = await runner.run('git', ['var', 'GIT_EDITOR']);
+      if (!result.ok) return null;
+      final out = result.stdout.trim();
       return out.isEmpty ? null : out;
     } on ProcessException {
       return null;
     }
-  }
+  };
 
   /// `%ProgramFiles%\neovim-qt*\bin\nvim-qt.exe`, without pulling in a glob
   /// package: walk the one level that can match.
-  static List<String> _windowsNvimQtCandidates() {
-    final roots = [
-      Platform.environment['ProgramFiles'],
-      Platform.environment['ProgramFiles(x86)'],
-    ].whereType<String>().where((root) => root.trim().isNotEmpty);
+  static Future<List<String>> nvimQtCandidatesIn(Env env, DirectoryLister lister) async {
+    final roots = [env['ProgramFiles'], env['ProgramFiles(x86)']].whereType<String>();
     final found = <String>[];
     for (final root in roots) {
       try {
-        for (final entry in Directory(root).listSync(followLinks: false)) {
-          final name = entry.uri.pathSegments.lastWhere(
+        for (final entry in await lister.list(root)) {
+          final name = entry.path.replaceAll(r'\', '/').split('/').lastWhere(
             (part) => part.isNotEmpty,
             orElse: () => '',
           );
           if (!name.toLowerCase().startsWith('neovim-qt')) continue;
-          final exe = '${entry.path.replaceAll(r'\', '/')}/bin/nvim-qt.exe';
-          found.add(exe);
+          found.add('${entry.path.replaceAll(r'\', '/')}/bin/nvim-qt.exe');
         }
       } on FileSystemException {
         // An unreadable Program Files is simply no candidates.

@@ -1,7 +1,7 @@
 ---
 id: task-15
 title: Seams for processes, environment and files
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-17'
 labels:
@@ -38,7 +38,23 @@ Introduce three small seams, each with a real default and a fake for tests:
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 no `Process.run`/`Process.start` outside the runner; no `Platform.environment` outside `Env`
-- [ ] #2 the attrib failure branches, `where` ordering (.exe, then .cmd/.bat), the env fallbacks and the drive probe have unit tests with fakes
-- [ ] #3 the real implementations are still exercised by the repo tests and integration tests
+- [x] #1 no `Process.run`/`Process.start` outside the runner; no `Platform.environment` outside `Env`
+- [x] #2 the attrib failure branches, `where` ordering (.exe, then .cmd/.bat), the env fallbacks and the drive probe have unit tests with fakes
+- [x] #3 the real implementations are still exercised by the repo tests and integration tests
 <!-- AC:END -->
+
+## Notes
+
+- `lib/state/system.dart`: `ProcessRunner` (`run` with `cwd`, `stdin`, `encoding`, plus
+  `startDetached` for editors), `Env` (blank counts as unset, `home` = `USERPROFILE` then `HOME`),
+  `DirectoryLister` (`list`, `exists`). Fakes: `test/support/fake_system.dart`.
+- The attrib repair moved to `lib/state/hidden_write.dart` (`HiddenWrite`), so its branches are
+  tested without a repository; `Repo.writeTextFile`/`clearHiddenAndSystem` delegate to it.
+- `Repo.open(path, runner:, env:)`, `Editors(runner:, env:, lister:)` (the `environment:` map
+  parameter became `env:`, `nvimQtCandidates` is async), `Prefs(env:)`,
+  `RepoBrowser(lister:, env:)`, `RepoBrowser.drives(lister:, env:)`.
+- Testable pure helpers: `Editors.pickFromWhere`, `Repo.globalIgnoreFrom`.
+- `paths.dart` still reads `Platform.isWindows` for the host path rules; the AC names only
+  `Platform.environment`. `Editors`' `exists` check is still a sync `File.existsSync`.
+- No `stdin` caller yet; task-2 (`check-ignore --stdin`) and task-18 (`commit -F -`) can use it.
+- `make test` (132 passed, count unchanged) and `make analyze` clean.

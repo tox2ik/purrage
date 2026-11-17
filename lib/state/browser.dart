@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
 import 'paths.dart';
+import 'system.dart';
 
 /// The host's path rules for this file's own string work.
 final p.Context _paths = hostPaths;
@@ -97,7 +98,16 @@ class RepoBrowser extends ChangeNotifier {
     required String startDirectory,
     this.maxDepth = 5,
     this.onReport,
-  }) : _directory = _clean(startDirectory);
+    this.lister = const SystemDirectoryLister(),
+    Env? env,
+  })  : _directory = _clean(startDirectory),
+        isWindows = (env ?? Env.system()).isWindows;
+
+  /// The file system the walk reads.
+  final DirectoryLister lister;
+
+  /// The skip trees are Windows system paths; elsewhere the walk has none.
+  final bool isWindows;
 
   /// Five levels below the browsed directory, as asked.
   final int maxDepth;
@@ -173,10 +183,8 @@ class RepoBrowser extends ChangeNotifier {
 
   static String _clean(String path) => canonicalPath(path);
 
-  static bool _inSkippedTree(String path) {
-    // The skip trees are Windows system paths; on any other platform the walk
-    // simply has none.
-    if (!Platform.isWindows) return false;
+  bool _inSkippedTree(String path) {
+    if (!isWindows) return false;
     final lower = _clean(path).toLowerCase();
     for (final tree in skipTrees) {
       if (lower == tree || lower.startsWith('$tree/')) return true;
@@ -217,12 +225,15 @@ class RepoBrowser extends ChangeNotifier {
 
   /// The mounted drives with a root directory, on Windows. Linux would have to
   /// read `/proc/self/mountinfo` and drop the pseudo filesystems; not yet.
-  static Future<List<String>> drives() async {
-    if (!Platform.isWindows) return const [];
+  static Future<List<String>> drives({
+    DirectoryLister lister = const SystemDirectoryLister(),
+    Env? env,
+  }) async {
+    if (!(env ?? Env.system()).isWindows) return const [];
     final found = <String>[];
     for (var letter = 'A'.codeUnitAt(0); letter <= 'Z'.codeUnitAt(0); letter++) {
       final root = '${String.fromCharCode(letter)}:/';
-      if (await Directory(root).exists()) found.add(root);
+      if (await lister.exists(root)) found.add(root);
     }
     return found;
   }
@@ -307,9 +318,9 @@ class RepoBrowser extends ChangeNotifier {
       if (node.depth >= node.limit) continue;
 
       final listing = Stopwatch()..start();
-      List<FileSystemEntity> children;
+      List<DirEntry> children;
       try {
-        children = await Directory(node.path).list(followLinks: false).toList();
+        children = await lister.list(node.path);
       } on FileSystemException {
         continue;
       }
@@ -317,8 +328,7 @@ class RepoBrowser extends ChangeNotifier {
       samples.add(ScanSample(path: node.path, took: listing.elapsed, entries: children.length));
 
       for (final child in children) {
-        if (child is! Directory) continue;
-        if (FileSystemEntity.isLinkSync(child.path)) continue;
+        if (!child.isDirectory || child.isLink) continue;
         final clean = _clean(child.path);
         final name = _paths.basename(clean);
         if (skip.contains(name.toLowerCase())) continue;
@@ -379,10 +389,7 @@ class RepoBrowser extends ChangeNotifier {
 
   /// A `.git` of its own: a folder for a clone, a file for a worktree or a
   /// submodule. One `type` call, no listing.
-  static Future<bool> _hasGit(String path) async {
-    final kind = await FileSystemEntity.type(_paths.join(path, '.git'));
-    return kind != FileSystemEntityType.notFound;
-  }
+  Future<bool> _hasGit(String path) => lister.exists(_paths.join(path, '.git'));
 
   /// The list's two columns decide the order: the containing path first, then the
   /// base name, both case-insensitive - the order a reader scans the screen.

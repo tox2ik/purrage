@@ -8,20 +8,25 @@ library;
 import 'dart:convert';
 import 'dart:io';
 
+import 'system.dart';
+
 /// A tiny JSON store with one key today, the chosen editor command.
 class Prefs {
   /// [directory] overrides where `prefs.json` lives; tests pass a temp folder.
   /// The default is [defaultDirectory].
-  Prefs({this.directory});
+  Prefs({this.directory, this.env});
 
   /// The folder given to the constructor, or null for [defaultDirectory].
   final String? directory;
+
+  /// The environment [defaultDirectory] reads; null for the real one.
+  final Env? env;
 
   Map<String, Object?> _values = <String, Object?>{};
   bool _loaded = false;
 
   /// The folder holding `prefs.json`, forward slashes.
-  String get folder => directory ?? defaultDirectory();
+  String get folder => directory ?? defaultDirectory(env);
 
   /// `prefs.json` next to this app's settings.
   String get path => '$folder/prefs.json';
@@ -30,13 +35,10 @@ class Prefs {
   bool get isLoaded => _loaded;
 
   /// `%APPDATA%/Purrage`, or `<home>/Purrage` when APPDATA is unset.
-  static String defaultDirectory() {
-    final appData = Platform.environment['APPDATA']?.trim();
-    final home =
-        Platform.environment['USERPROFILE']?.trim() ??
-        Platform.environment['HOME']?.trim() ??
-        Directory.current.path;
-    final base = (appData == null || appData.isEmpty) ? home : appData;
+  /// `<cwd>/Purrage` when neither home variable is set either.
+  static String defaultDirectory([Env? env]) {
+    final vars = env ?? Env.system();
+    final base = vars['APPDATA'] ?? vars.home ?? Directory.current.path;
     return '$base/Purrage'.replaceAll(r'\', '/');
   }
 
