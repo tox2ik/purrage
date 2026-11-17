@@ -6,6 +6,7 @@ import 'package:purrage/state/status.dart';
 import 'package:purrage/ui/shell.dart';
 
 import 'support/fake_repo.dart';
+import 'support/fake_workspace.dart';
 
 StatusRow untracked(String path) => StatusRow(
       section: Section.untracked,
@@ -17,7 +18,7 @@ StatusRow untracked(String path) => StatusRow(
 Future<Changes> openShell(WidgetTester tester, FakeRepo repo) async {
   final changes = Changes(repo);
   await changes.load();
-  await tester.pumpWidget(MaterialApp(home: Shell(repo: repo, seeded: changes)));
+  await tester.pumpWidget(MaterialApp(home: Shell(workspace: fakeWorkspace(repo, changes: changes))));
   await tester.pump();
   return changes;
 }

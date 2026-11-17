@@ -8,6 +8,7 @@ import 'state/console.dart';
 import 'state/diagnostics.dart';
 import 'state/failure.dart';
 import 'state/repo.dart';
+import 'state/workspace.dart';
 import 'ui/shell.dart';
 import 'ui/theme.dart';
 
@@ -56,7 +57,10 @@ class PurrageApp extends StatefulWidget {
 }
 
 class _PurrageAppState extends State<PurrageApp> {
-  late final Future<Repo> repo = Repo.open(widget.directory);
+  /// Built once: the shell owns the workspace and disposes it.
+  late final Future<Workspace> workspace = Repo.open(widget.directory).then(
+    (repo) => Workspace(repo: repo, opener: Repo.open, console: widget.console),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -64,8 +68,8 @@ class _PurrageAppState extends State<PurrageApp> {
       title: 'Purrage',
       debugShowCheckedModeBanner: false,
       theme: buildTheme(),
-      home: FutureBuilder<Repo>(
-        future: repo,
+      home: FutureBuilder<Workspace>(
+        future: workspace,
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             final error = snapshot.error!;
@@ -78,7 +82,7 @@ class _PurrageAppState extends State<PurrageApp> {
             return const Scaffold(body: Center(child: CircularProgressIndicator()));
           }
           Diagnostics.enter('Changes');
-          return Shell(repo: open, console: widget.console);
+          return Shell(workspace: open);
         },
       ),
     );

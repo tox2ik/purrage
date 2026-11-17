@@ -19,11 +19,28 @@ class FakeRepo implements GitRepo {
 
   final Map<String, String> files = {};
 
+  /// Calls that throw instead of answering, by method name (`track`,
+  /// `untrack`, `commit`, `status`, `createIgnoreFile`, ...).
+  final Map<String, Object> failures = {};
+
+  /// Every method called, in order.
+  final List<String> calls = [];
+
+  void _enter(String method) {
+    calls.add(method);
+    final failure = failures[method];
+    if (failure != null) throw failure;
+  }
+
   @override
-  Future<List<StatusRow>> status() async => rows;
+  Future<List<StatusRow>> status() async {
+    _enter('status');
+    return rows;
+  }
 
   @override
   Future<void> track(Iterable<String> paths) async {
+    _enter('track');
     final staged = paths.toSet();
     lastCommand = 'git add -- ${paths.join(' ')}';
     rows = [
@@ -42,6 +59,7 @@ class FakeRepo implements GitRepo {
 
   @override
   Future<void> untrack(String path) async {
+    _enter('untrack');
     lastCommand = 'git rm --cached -- $path';
     rows = [
       for (final row in rows)
@@ -51,15 +69,28 @@ class FakeRepo implements GitRepo {
 
   @override
   Future<void> commit(String summary) async {
+    _enter('commit');
+    commits.add(summary);
     rows = const [];
   }
 
+  /// Every summary committed.
+  final List<String> commits = [];
+
+  /// Paths a test says are already ignored, with the rule that does it.
+  final Map<String, IgnoreMatch> ignored = {};
 
   @override
-  Future<IgnoreMatch?> checkIgnore(String path) async => null;
+  Future<IgnoreMatch?> checkIgnore(String path) async {
+    _enter('checkIgnore');
+    return ignored[path];
+  }
 
   @override
-  Future<List<String>> gitignoreFiles() async => ['.gitignore'];
+  Future<List<String>> gitignoreFiles() async {
+    _enter('gitignoreFiles');
+    return ['.gitignore'];
+  }
 
   @override
   Future<String> localExcludePath() async => '$path/.git/info/exclude';
@@ -72,6 +103,7 @@ class FakeRepo implements GitRepo {
 
   @override
   Future<IgnoreAppend> appendIgnoreLine(String absolutePath, String pattern) async {
+    _enter('appendIgnoreLine');
     writes.add('$absolutePath|$pattern');
     files[absolutePath] = '${files[absolutePath] ?? ''}$pattern\n';
     rows = [
@@ -92,6 +124,7 @@ class FakeRepo implements GitRepo {
 
   @override
   Future<void> createIgnoreFile(String absolutePath) async {
+    _enter('createIgnoreFile');
     files.putIfAbsent(absolutePath, () => '# Purrage\n');
   }
 }
