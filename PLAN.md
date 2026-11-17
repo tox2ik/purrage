@@ -125,8 +125,9 @@ The ignore pane becomes a list of `.gitignore` files, not one file:
 
 - On start it scans the directory the app was started in, up to **five levels deep**, and lists
   every folder that holds a `.git` (folder for a clone, file for a worktree or submodule). The entry
-  is the **working directory**, never `.git`; a found repository is not descended into, links are
-  never followed, and `node_modules`, `build`, `.dart_tool`, `target`, `dist`, `.venv`, `.gradle`,
+  is the **working directory**, never `.git`; a found repository is not descended into — except the
+  browsed directory itself, which is usually a repository and whose children are the point — links
+  are never followed, and `node_modules`, `build`, `.dart_tool`, `target`, `dist`, `.venv`, `.gradle`,
   `.idea`, `.vscode` and `.cache` are skipped so a home folder stays walkable.
 - Clicking an entry opens that repository — a fresh `Repo`, `Changes` and ignore pane — and the row
   stays marked (tinted, accent bar, `open`): the app stays in Browse, because jumping to Changes made

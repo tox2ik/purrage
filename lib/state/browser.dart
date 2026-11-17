@@ -243,7 +243,9 @@ class RepoBrowser extends ChangeNotifier {
       // its own tree is not walked. Listing a directory is the expensive call.
       if (await _hasGit(node.path)) {
         found.add(node.path);
-        continue;
+        // The browsed directory is the one exception: it is usually a repository
+        // itself, and the checkouts to switch to live inside it.
+        if (node.path != directory) continue;
       }
       if (node.depth >= node.limit) continue;
 
