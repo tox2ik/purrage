@@ -124,6 +124,14 @@ The ignore pane becomes a list of `.gitignore` files, not one file:
   `root`, `lib/generated`, … label.
 - Selecting one shows its lines read-only, with the focused file's matching rule highlighted
   (from `git check-ignore -v`, which names the file and the line).
+- The pane follows the match: when the cursor settles and `check-ignore` names a file in the
+  rail, that file is selected and the matching line scrolled into view. A file the user picks
+  in the rail wins until the cursor moves to another path. A match in `.git/info/exclude` or the
+  global file is one line, "ignored by `<pattern>` in `<file>:<line>`", with an **Open** button.
+  A path nothing ignores is said as "not ignored".
+- The pane is resizable by its left edge (resize cursor, tooltip, double-click for the default
+  360 px), the width is remembered in prefs, and under 900 px of window width it is hidden so the
+  file list keeps its room; `p` shows or hides it either way.
 - **Open in editor** opens the selected file; a **New here** button creates a `.gitignore` in the
   focused file's folder.
 - A nested `.gitignore` the app just created shows up as an untracked row in the list, so tracking
@@ -201,7 +209,7 @@ The ignore pane becomes a list of `.gitignore` files, not one file:
 
 - Actions: `space` or `a` track (`git add`), `u` untrack, `i` ignore with the literal path, `Shift+I` the ignore
   dialog, `e` open file, `E` open `.gitignore`, `c` commit, `r` / `F5` / `Ctrl+R` re-read the state,
-  `/` or `Ctrl+F` filter, `Esc` close.
+  `/` or `Ctrl+F` filter, `p` show or hide the ignore pane, `Esc` close.
 - Every list (Changes, Browse, Console, Settings, the ignore rail): `Home` / `End`, `PageUp` /
   `PageDown` (15 rows until the list has a fixed row height to measure a viewport with); in Changes
   the `Shift` forms extend the highlight, `Ctrl+A` highlights every row and `Esc` shrinks the
@@ -258,11 +266,13 @@ The ignore pane becomes a list of `.gitignore` files, not one file:
 - `lib/ui/` — `file_list.dart`, `filter_field.dart`, `ignore_dialog.dart`, `ignore_pane.dart`,
   `browse_view.dart`, `console_view.dart`, `notice_bar.dart`, `commit_bar.dart`, `settings_view.dart`,
   `help_view.dart` (with `keyTable`), `debug_bar.dart`, `theme.dart` (every colour and size),
-  `nav_keys.dart`.
+  `nav_keys.dart`, `resizable_pane.dart` (the ignore pane's draggable edge).
 - `lib/state/` — `repo.dart` (the `git` package wrapper), `git_repo.dart` (the seam the UI talks to),
   `status.dart` (parser + model), `changes.dart` (sections, selection, optimistic actions),
-  `browser.dart` (repository scan), `modes.dart` (the modes and their keys), `failure.dart` + `console.dart` + `diagnostics.dart` (reporting),
-  `notices.dart`, `ignore_rules.dart`, `ignore_files.dart`, `editors.dart`, `prefs.dart`.
+  `browser.dart` (repository scan), `modes.dart` (the modes and their keys), `failure.dart` +
+  `console.dart` + `diagnostics.dart` (reporting), `notices.dart` + `notice_group.dart` (the
+  grouped untrack notice), `ignore_rules.dart`, `ignore_files.dart`, `pane_layout.dart` (the
+  ignore pane's width and visibility), `editors.dart`, `prefs.dart`.
 - Follow `~/ws/nvimos-ops/declarative_ui_guidelines.md`: ≤3 levels of inline layout nesting,
   `build` under 50 lines, lists from data with builders, no logic in event handlers.
 

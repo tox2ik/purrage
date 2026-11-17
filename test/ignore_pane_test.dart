@@ -125,18 +125,76 @@ void main() {
       expect(state.selectedText, '# generated\n*.g.dart');
     });
 
-    test('the match line resolves only in the file that owns the rule', () async {
+    test('a match in a nested file selects that file', () async {
       final state = await opened(fixture());
+      expect(state.selected?.path, '.gitignore');
       await state.focusPath('lib/generated/a.g.dart');
 
       expect(state.match?.pattern, '*.g.dart');
-      expect(state.matchLine, isNull, reason: 'root file is selected');
-
-      state.select('lib/generated/.gitignore');
+      expect(state.selected?.path, 'lib/generated/.gitignore');
       expect(state.matchLine, 2);
+      expect(state.verdict, 'line 2');
+      expect(state.outsideMatch, isNull);
+    });
 
-      state.select('.gitignore');
+    test("the user's pick wins until the cursor moves again", () async {
+      final repo = fixture();
+      final state = await opened(repo);
+      await state.focusPath('lib/generated/a.g.dart');
+
+      state.pick('.gitignore');
       expect(state.matchLine, isNull, reason: 'the rule is not in this file');
+      expect(state.verdict, 'matched in lib/generated/.gitignore:2');
+
+      // A reload asks again for the same path: the pick stays.
+      await state.load();
+      await state.focusPath('lib/generated/a.g.dart');
+      expect(state.selected?.path, '.gitignore');
+
+      // The cursor moves away and back: the match leads again.
+      await state.focusPath('notes.md');
+      await state.focusPath('lib/generated/a.g.dart');
+      expect(state.selected?.path, 'lib/generated/.gitignore');
+    });
+
+    test('a match in info/exclude or the global file is an outside match', () async {
+      final repo = IgnoreFakeRepo(
+        contents: const {'C:/repo/.gitignore': 'build/\n'},
+        matches: const {
+          'a.tmp': IgnoreMatch(
+            source: 'C:/repo/.git/info/exclude',
+            line: 3,
+            pattern: '*.tmp',
+            path: 'a.tmp',
+          ),
+          'b.swp': IgnoreMatch(
+            source: r'C:\home\.config\git\ignore',
+            line: 1,
+            pattern: '*.swp',
+            path: 'b.swp',
+          ),
+        },
+      );
+      final state = await opened(repo);
+
+      await state.focusPath('a.tmp');
+      expect(state.selected?.path, '.gitignore');
+      expect(state.matchLine, isNull);
+      expect(state.outsideMatch?.sentence, 'ignored by `*.tmp` in .git/info/exclude:3');
+      expect(state.outsideMatch?.absolutePath, 'C:/repo/.git/info/exclude');
+      expect(state.verdict, 'ignored elsewhere');
+
+      await state.focusPath('b.swp');
+      expect(state.outsideMatch?.file, 'C:/home/.config/git/ignore');
+      expect(state.outsideMatch?.absolutePath, 'C:/home/.config/git/ignore');
+    });
+
+    test('a path nothing ignores says so', () async {
+      final state = await opened(fixture());
+      expect(state.verdict, '');
+      await state.focusPath('notes.md');
+      expect(state.verdict, 'not ignored');
+      expect(state.outsideMatch, isNull);
     });
 
     test('a relative match source is normalised too', () async {
@@ -172,6 +230,7 @@ void main() {
       IgnoreFakeRepo repo, {
       VoidCallback? onOpen,
       VoidCallback? onNew,
+      ValueChanged<String>? onOpenFile,
     }) async {
       final state = await opened(repo);
       await tester.pumpWidget(
@@ -182,6 +241,7 @@ void main() {
               state: state,
               onOpenInEditor: onOpen ?? () {},
               onNewHere: onNew ?? () {},
+              onOpenFile: onOpenFile,
             ),
           ),
         ),
@@ -216,10 +276,57 @@ void main() {
     });
 
     testWidgets('no match says so', (tester) async {
-      await pumpPane(tester, fixture());
+      final state = await pumpPane(tester, fixture());
+      await state.focusPath('notes.md');
+      await tester.pump();
 
-      expect(find.text('no file matches'), findsOneWidget);
+      expect(find.text('not ignored'), findsOneWidget);
       expect(find.byKey(const ValueKey('ignore-matched-line')), findsNothing);
+    });
+
+    testWidgets('an outside match is one line with an Open button', (tester) async {
+      final repo = IgnoreFakeRepo(
+        contents: const {'C:/repo/.gitignore': 'build/\n'},
+        matches: const {
+          'a.tmp': IgnoreMatch(
+            source: 'C:/repo/.git/info/exclude',
+            line: 3,
+            pattern: '*.tmp',
+            path: 'a.tmp',
+          ),
+        },
+      );
+      final opened = <String>[];
+      final state = await pumpPane(tester, repo, onOpenFile: opened.add);
+      await state.focusPath('a.tmp');
+      await tester.pump();
+
+      expect(find.text('ignored by `*.tmp` in .git/info/exclude:3'), findsOneWidget);
+      await tester.tap(find.widgetWithText(TextButton, 'Open'));
+      await tester.pump();
+      expect(opened, ['C:/repo/.git/info/exclude']);
+    });
+
+    testWidgets('the matching line of a long file is scrolled into view', (tester) async {
+      final lines = [for (var i = 1; i <= 200; i++) '/file$i'];
+      final repo = IgnoreFakeRepo(
+        contents: {'C:/repo/.gitignore': '${lines.join('\n')}\n'},
+        matches: const {
+          'file180': IgnoreMatch(
+            source: 'C:/repo/.gitignore',
+            line: 180,
+            pattern: '/file180',
+            path: 'file180',
+          ),
+        },
+      );
+      final state = await pumpPane(tester, repo);
+      expect(find.text('/file180'), findsNothing);
+
+      await state.focusPath('file180');
+      await tester.pump();
+      await tester.pump();
+      expect(find.byKey(const ValueKey('ignore-matched-line')), findsOneWidget);
     });
 
     testWidgets('both buttons fire their callbacks', (tester) async {

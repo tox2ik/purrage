@@ -15,11 +15,15 @@ class IgnorePane extends StatelessWidget {
     required this.onNewHere,
     this.railFocus,
     this.linesFocus,
+    this.onOpenFile,
   });
 
   final IgnorePaneState state;
   final VoidCallback onOpenInEditor;
   final VoidCallback onNewHere;
+
+  /// Open an ignore file the rail does not list (exclude, global), by path.
+  final ValueChanged<String>? onOpenFile;
 
   /// The two Tab stops of the pane: the file rail (j/k pick a file) and the
   /// lines (j/k scroll). Without them the pane takes no keys.
@@ -39,19 +43,27 @@ class IgnorePane extends StatelessWidget {
     );
   }
 
-  Widget _body() => Row(
-        children: [
-          SizedBox(width: 180, child: _keys(railFocus, _railActions, _FileRail(state: state))),
-          const VerticalDivider(width: 1),
-          Expanded(
-            child: _Detail(
-              state: state,
-              linesFocus: linesFocus,
-              onOpenInEditor: onOpenInEditor,
-              onNewHere: onNewHere,
+  /// The rail takes half the pane, up to its old 180 px, so a narrow pane
+  /// keeps room for the lines.
+  Widget _body() => LayoutBuilder(
+        builder: (context, box) => Row(
+          children: [
+            SizedBox(
+              width: (box.maxWidth / 2).clamp(0, 180),
+              child: _keys(railFocus, _railActions, _FileRail(state: state)),
             ),
-          ),
-        ],
+            const VerticalDivider(width: 1),
+            Expanded(
+              child: _Detail(
+                state: state,
+                linesFocus: linesFocus,
+                onOpenInEditor: onOpenInEditor,
+                onNewHere: onNewHere,
+                onOpenFile: onOpenFile,
+              ),
+            ),
+          ],
+        ),
       );
 
   Map<Type, Action<Intent>> get _railActions => {
@@ -84,7 +96,7 @@ class _FileRail extends StatelessWidget {
           label: file.label,
           tooltip: file.path,
           selected: file.path == state.selected?.path,
-          onTap: () => state.select(file.path),
+          onTap: () => state.pick(file.path),
         );
       },
     );
@@ -129,17 +141,24 @@ class _Detail extends StatelessWidget {
     required this.linesFocus,
     required this.onOpenInEditor,
     required this.onNewHere,
+    required this.onOpenFile,
   });
 
   final IgnorePaneState state;
   final FocusNode? linesFocus;
   final VoidCallback onOpenInEditor;
   final VoidCallback onNewHere;
+  final ValueChanged<String>? onOpenFile;
 
   @override
   Widget build(BuildContext context) => Column(
         children: [
-          _Header(state: state, onOpenInEditor: onOpenInEditor, onNewHere: onNewHere),
+          _Header(
+            state: state,
+            onOpenInEditor: onOpenInEditor,
+            onNewHere: onNewHere,
+            onOpenFile: onOpenFile,
+          ),
           const Divider(height: 1),
           Expanded(child: _Lines(state: state, focusNode: linesFocus)),
         ],
@@ -147,11 +166,17 @@ class _Detail extends StatelessWidget {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.state, required this.onOpenInEditor, required this.onNewHere});
+  const _Header({
+    required this.state,
+    required this.onOpenInEditor,
+    required this.onNewHere,
+    required this.onOpenFile,
+  });
 
   final IgnorePaneState state;
   final VoidCallback onOpenInEditor;
   final VoidCallback onNewHere;
+  final ValueChanged<String>? onOpenFile;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -160,6 +185,8 @@ class _Header extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _TitleRow(state: state),
+            if (state.outsideMatch != null)
+              _OutsideLine(match: state.outsideMatch!, onOpen: onOpenFile),
             const SizedBox(height: 4),
             Wrap(
               alignment: WrapAlignment.end,
@@ -194,7 +221,6 @@ class _TitleRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final line = state.matchLine;
     return Row(
       children: [
         Expanded(
@@ -208,7 +234,7 @@ class _TitleRow extends StatelessWidget {
         const SizedBox(width: 8),
         Flexible(
           child: Text(
-            line == null ? 'no file matches' : 'line $line',
+            state.verdict,
             overflow: TextOverflow.ellipsis,
             maxLines: 1,
             style: T.tiny.copyWith(color: scheme.onSurfaceVariant),
@@ -233,11 +259,17 @@ class _Lines extends StatefulWidget {
 class _LinesState extends State<_Lines> {
   final ScrollController scroll = ScrollController();
 
-  /// One line is about 20 px; motion keys scroll by lines, clamped.
+  /// Every line has this height, so the matching one is found by index.
+  static const extent = 20.0;
+
+  int? _revealed;
+  String? _revealedIn;
+
+  /// Motion keys scroll by lines, clamped.
   void scrollBy(MoveIntent intent) {
     if (!scroll.hasClients) return;
     final position = scroll.position;
-    final target = position.pixels + intent.delta.clamp(-1 << 20, 1 << 20) * 20.0;
+    final target = position.pixels + intent.delta.clamp(-1 << 20, 1 << 20) * extent;
     scroll.jumpTo(target.clamp(position.minScrollExtent, position.maxScrollExtent));
   }
 
@@ -245,6 +277,30 @@ class _LinesState extends State<_Lines> {
   void dispose() {
     scroll.dispose();
     super.dispose();
+  }
+
+  /// After a frame that shows a new match (or the match in a newly selected
+  /// file), bring its line into view.
+  void _revealAfterFrame() {
+    final line = widget.state.matchLine;
+    final file = widget.state.selected?.path;
+    if (line == _revealed && file == _revealedIn) return;
+    _revealed = line;
+    _revealedIn = file;
+    WidgetsBinding.instance.addPostFrameCallback((_) => reveal());
+  }
+
+  /// Scroll only when the matching line is outside the viewport, and then put it
+  /// in the middle.
+  void reveal() {
+    final line = widget.state.matchLine;
+    if (line == null || !mounted || !scroll.hasClients) return;
+    final position = scroll.position;
+    final top = (line - 1) * extent;
+    final inView = top >= position.pixels && top + extent <= position.pixels + position.viewportDimension;
+    if (inView) return;
+    final centred = top - (position.viewportDimension - extent) / 2;
+    scroll.jumpTo(centred.clamp(position.minScrollExtent, position.maxScrollExtent));
   }
 
   @override
@@ -259,8 +315,10 @@ class _LinesState extends State<_Lines> {
       return const Center(child: Text('nothing in this file'));
     }
     final matchLine = widget.state.matchLine;
+    _revealAfterFrame();
     return ListView.builder(
       controller: scroll,
+      itemExtent: extent,
       itemCount: file.lines.length,
       itemBuilder: (context, index) => _Line(
         number: index + 1,
@@ -306,6 +364,43 @@ class _Line extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// A rule from a file the rail does not list: the sentence and an Open button.
+class _OutsideLine extends StatelessWidget {
+  const _OutsideLine({required this.match, required this.onOpen});
+
+  final OutsideMatch match;
+  final ValueChanged<String>? onOpen;
+
+  void open() => onOpen?.call(match.absolutePath);
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Tooltip(
+            message: match.absolutePath,
+            child: Text(
+              match.sentence,
+              key: const ValueKey('ignore-outside-match'),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+              style: T.code,
+            ),
+          ),
+        ),
+        if (onOpen != null)
+          SmallButton(
+            label: 'Open',
+            icon: Icons.open_in_new,
+            tooltip: 'Open ${match.file} in the editor',
+            onPressed: open,
+          ),
+      ],
     );
   }
 }

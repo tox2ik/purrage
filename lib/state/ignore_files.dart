@@ -32,6 +32,28 @@ class IgnoreFile {
   }
 }
 
+/// A rule that matches the focused path from a file outside the rail.
+class OutsideMatch {
+  const OutsideMatch({
+    required this.pattern,
+    required this.line,
+    required this.file,
+    required this.absolutePath,
+  });
+
+  final String pattern;
+  final int line;
+
+  /// How the file is named on screen: repo-relative when inside, else absolute.
+  final String file;
+
+  /// What "Open" hands to the editor.
+  final String absolutePath;
+
+  /// `ignored by `*.log` in .git/info/exclude:3`
+  String get sentence => 'ignored by `$pattern` in $file:$line';
+}
+
 /// What the pane shows, loaded from [GitRepo] and driven by tests without
 /// widgets. Failures become [error]; every method is safe to await.
 class IgnorePaneState extends ChangeNotifier {
@@ -60,6 +82,33 @@ class IgnorePaneState extends ChangeNotifier {
   IgnoreMatch? get match => _match;
 
   String? get error => _error;
+
+  /// A match from a file the rail does not list (`.git/info/exclude`, the global
+  /// ignore file), for the one-line "ignored by … in …" with an Open button.
+  OutsideMatch? get outsideMatch {
+    final match = _match;
+    if (match == null) return null;
+    final relative = _relative(match.source);
+    if (relative != null && _firstWhere(_files, relative) != null) return null;
+    return OutsideMatch(
+      pattern: match.pattern,
+      line: match.line,
+      file: relative ?? canonicalPath(match.source),
+      absolutePath: relative == null ? canonicalPath(match.source) : _absolute(relative),
+    );
+  }
+
+  /// The pane's one-word answer for the focused path: `not ignored` is said,
+  /// never left blank.
+  String get verdict {
+    final match = _match;
+    if (_focusedPath == null) return '';
+    if (match == null) return 'not ignored';
+    final line = matchLine;
+    if (line != null) return 'line $line';
+    if (outsideMatch != null) return 'ignored elsewhere';
+    return 'matched in ${_relative(match.source)}:${match.line}';
+  }
 
   /// The 1-based line of the match inside the selected file, or null when the
   /// match lives in another file (or there is no match).
@@ -99,7 +148,8 @@ class IgnorePaneState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Explain [repoRelativePath] against the ignore files.
+  /// Explain [repoRelativePath] against the ignore files, and select the file
+  /// the matching rule lives in, unless the user picked a file for this path.
   ///
   /// The shell starts this from a timer without awaiting it, so the probe is
   /// kept and [idle] can wait for it.
@@ -132,10 +182,13 @@ class IgnorePaneState extends ChangeNotifier {
 
   Future<void> _focusPath(String repoRelativePath) async {
     if (_focusedPath == repoRelativePath && _match != null) return;
+    // The cursor moved on: a pick made for the old path no longer holds.
+    if (_focusedPath != repoRelativePath) _pickedFor = null;
     _focusedPath = repoRelativePath;
     try {
       _match = await repo.checkIgnore(repoRelativePath);
       _error = null;
+      _followMatch();
     } catch (error) {
       _match = null;
       _error = _message(error);
@@ -143,20 +196,41 @@ class IgnorePaneState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// j / k in the rail: the next or previous file, clamped.
+  /// j / k in the rail: the next or previous file, clamped. A keyboard pick
+  /// is the user's own, like a click.
   void selectBy(int delta) {
     if (_files.isEmpty) return;
     final at = _files.indexWhere((file) => file.path == _selectedPath);
     final next = ((at < 0 ? 0 : at) + delta).clamp(0, _files.length - 1);
-    select(_files[next].path);
+    pick(_files[next].path);
   }
 
+  /// The rail file the match is in becomes the selection: the pane answers
+  /// "why is this ignored" without the user hunting for the right file.
+  void _followMatch() {
+    final match = _match;
+    if (match == null || _pickedFor == _focusedPath) return;
+    final relative = _relative(match.source);
+    if (relative != null && _firstWhere(_files, relative) != null) _selectedPath = relative;
+  }
+
+  /// Select a file from code (a new file, a reload).
   void select(String path) {
     final clean = _relative(path) ?? path;
     if (_selectedPath == clean) return;
     _selectedPath = clean;
     notifyListeners();
   }
+
+  /// The user clicked a file in the rail: that wins over the match until the
+  /// cursor moves to another path.
+  void pick(String path) {
+    _pickedFor = _focusedPath;
+    select(path);
+  }
+
+  /// The focused path when the user last picked a file by hand.
+  String? _pickedFor;
 
   /// Keep the selected file across a reload when it still exists, else take the
   /// first entry (the root file), else nothing.

@@ -20,6 +20,7 @@ import 'ignore_files.dart';
 import 'ignore_rules.dart';
 import 'notice_group.dart';
 import 'notices.dart';
+import 'pane_layout.dart';
 import 'prefs.dart';
 import 'status.dart';
 
@@ -116,8 +117,13 @@ class Workspace extends ChangeNotifier {
   Future<void> _loadPrefs() async {
     await prefs.load();
     editorCommand = prefs.editorCommand;
+    paneLayout.restore(prefs.ignorePaneWidth);
     notifyListeners();
   }
+
+  /// The ignore pane's width (dragged, remembered in prefs) and whether it is
+  /// shown; `p` toggles it.
+  late final PaneLayout paneLayout = PaneLayout(onSave: prefs.setIgnorePaneWidth);
 
   /// Completes when everything this object started in the background is done.
   Future<void> idle() async {
@@ -133,6 +139,7 @@ class Workspace extends ChangeNotifier {
     _disposed = true;
     _probe?.cancel();
     untrackNotice.dispose();
+    paneLayout.dispose();
     _changes.cursor.removeListener(_cursorMoved);
     _changes.dispose();
     _ignorePane.dispose();
@@ -441,9 +448,14 @@ class Workspace extends ChangeNotifier {
   /// The Settings "Test" button: open [file] from the repository root.
   Future<void> openTestFile(String file) => _openInEditor(file, origin: 'Workspace.openTestFile');
 
-  Future<void> _openInEditor(String relative, {required String origin}) async {
+  /// "Open" on a match from a file outside the ignore pane's rail
+  /// (`.git/info/exclude`, the global ignore file): [path] is absolute.
+  Future<void> openIgnoreFile(String path) =>
+      _openInEditor(path, origin: 'Workspace.openIgnoreFile', absolute: true);
+
+  Future<void> _openInEditor(String relative, {required String origin, bool absolute = false}) async {
     try {
-      await editors.open(file: '${_repo.path}/$relative');
+      await editors.open(file: absolute ? relative : '${_repo.path}/$relative');
     } on EditorException catch (error) {
       say(
         error.message,

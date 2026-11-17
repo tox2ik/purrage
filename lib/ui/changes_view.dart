@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../state/changes.dart';
 import '../state/ignore_files.dart';
+import '../state/pane_layout.dart';
 import '../state/status.dart';
 import 'commit_bar.dart';
 import 'file_list.dart';
 import 'ignore_pane.dart';
+import 'resizable_pane.dart';
 import 'widgets.dart';
 
 /// The Changes mode: the file list, the commit bar across the bottom.
@@ -30,7 +32,16 @@ class ChangesView extends StatelessWidget {
     required this.listFocus,
     this.railFocus,
     this.linesFocus,
+    this.paneLayout,
+    this.onOpenIgnoreFile,
   });
+
+  /// The ignore pane's width and visibility (resizable, hidden on a narrow
+  /// window); null gives the fixed default width.
+  final PaneLayout? paneLayout;
+
+  /// Open an ignore file outside the pane's rail (exclude, global).
+  final ValueChanged<String>? onOpenIgnoreFile;
 
   /// The Tab stops besides the two text fields: the list, the ignore rail and
   /// the ignore lines.
@@ -66,9 +77,8 @@ class ChangesView extends StatelessWidget {
           child: Row(
             children: [
               Expanded(child: PaneMark(nodes: [listFocus], child: _list())),
-              const VerticalDivider(width: 1),
-              SizedBox(
-                width: 360,
+              _SidePane(
+                layout: paneLayout,
                 child: PaneMark(nodes: [railFocus, linesFocus], child: _ignorePane()),
               ),
             ],
@@ -104,7 +114,36 @@ class ChangesView extends StatelessWidget {
         onNewHere: onNewIgnore,
         railFocus: railFocus,
         linesFocus: linesFocus,
+        onOpenFile: onOpenIgnoreFile,
       );
+}
+
+/// The ignore pane on the right: resizable by its edge, hidden on a narrow
+/// window (or by `p`), so the file list never loses its room first. Without a
+/// [layout] it is the default width, with a plain divider.
+class _SidePane extends StatelessWidget {
+  const _SidePane({required this.layout, required this.child});
+
+  final PaneLayout? layout;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final layout = this.layout;
+    if (layout == null) {
+      return Row(children: [
+        const VerticalDivider(width: 1),
+        SizedBox(width: PaneLayout.defaultWidth, child: child),
+      ]);
+    }
+    final room = MediaQuery.sizeOf(context).width;
+    return ListenableBuilder(
+      listenable: layout,
+      builder: (context, _) => layout.shownIn(room)
+          ? ResizablePane(layout: layout, room: room, child: child)
+          : const SizedBox.shrink(),
+    );
+  }
 }
 
 /// git's error from the last load or refresh, across the top; nothing when

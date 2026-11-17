@@ -85,6 +85,17 @@ class Prefs {
     await _save();
   }
 
+  /// The ignore pane's width the user dragged it to, or null for the default.
+  double? get ignorePaneWidth {
+    final value = _values['ignorePaneWidth'];
+    return value is num && value > 0 ? value.toDouble() : null;
+  }
+
+  Future<void> setIgnorePaneWidth(double width) async {
+    _values['ignorePaneWidth'] = width.roundToDouble();
+    await _save();
+  }
+
   /// Write the whole store: a temp file in the same folder, then a rename.
   Future<void> _save() async {
     final dir = Directory(folder);

@@ -70,6 +70,11 @@ class FocusCommitIntent extends Intent {
   const FocusCommitIntent();
 }
 
+/// `p`: show or hide the ignore pane.
+class TogglePaneIntent extends Intent {
+  const TogglePaneIntent();
+}
+
 /// Tab / Shift+Tab: the next or previous pane of the shown mode, wrapping.
 class PaneIntent extends Intent {
   const PaneIntent(this.delta);
@@ -210,6 +215,8 @@ const List<Binding> changesBindings = [
       activators: [CharacterActivator('I')], intent: IgnoreDialogIntent()),
   Binding('c', 'jump to the commit message',
       activators: [CharacterActivator('c'), CharacterActivator('C')], intent: FocusCommitIntent()),
+  Binding('p', 'show or hide the ignore pane (hidden under 900 px)',
+      activators: [CharacterActivator('p'), CharacterActivator('P')], intent: TogglePaneIntent()),
   Binding('/ or Ctrl+F', 'filter the list (Esc clears, Enter leaves)', activators: [
     CharacterActivator('/'),
     SingleActivator(LogicalKeyboardKey.keyF, control: true),

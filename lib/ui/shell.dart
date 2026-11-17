@@ -88,8 +88,10 @@ class ShellState extends State<Shell> {
       WidgetsBinding.instance.addPostFrameCallback((_) => mounted ? node.requestFocus() : null);
 
   /// Tab / Shift+Tab: the next or previous stop of the shown mode, wrapping.
+  /// A stop that is not on screen (the ignore pane hidden by `p` or a narrow
+  /// window) is skipped.
   void nextPane(int delta) {
-    final order = stops(mode);
+    final order = [for (final node in stops(mode)) if (node.context != null) node];
     final at = order.indexWhere((node) => node.hasFocus);
     final from = at < 0 ? (delta > 0 ? -1 : 0) : at;
     order[(from + delta) % order.length].requestFocus();
@@ -154,7 +156,11 @@ class ShellState extends State<Shell> {
     ReloadIntent: CallbackAction<ReloadIntent>(onInvoke: (_) => workspace.reloadAll()),
     FocusFilterIntent: CallbackAction<FocusFilterIntent>(onInvoke: (_) => filterFocus.requestFocus()),
     FocusCommitIntent: CallbackAction<FocusCommitIntent>(onInvoke: (_) => commitFocus.requestFocus()),
+    TogglePaneIntent: CallbackAction<TogglePaneIntent>(onInvoke: (_) => toggleIgnorePane()),
   };
+
+  /// `p`: show or hide the ignore pane, whatever the window width decided.
+  void toggleIgnorePane() => workspace.paneLayout.toggle(MediaQuery.sizeOf(context).width);
 
   /// Shift+I: ask how wide the rule is and where it goes, then write it. The
   /// dialog is the UI's part; the workspace asks and writes.
@@ -236,6 +242,8 @@ class ShellState extends State<Shell> {
           onOpenIgnore: workspace.openSelectedIgnore,
           onNewIgnore: workspace.newIgnoreHere,
           onCommit: commitNow,
+          paneLayout: workspace.paneLayout,
+          onOpenIgnoreFile: workspace.openIgnoreFile,
         ),
         BrowseView(
           browser: workspace.browser,

@@ -126,6 +126,10 @@ void main() {
   });
 
   testWidgets('Tab and Shift+Tab visit every Changes stop in order and wrap', (tester) async {
+    // Wide enough for the ignore pane: under 900 px it is hidden (task-11).
+    tester.view.physicalSize = const Size(1400, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
     await openShell(tester, rows: [untracked('a.txt')]);
     final seen = <String?>[focusedRole()];
     for (var i = 0; i < 5; i++) {
@@ -142,6 +146,17 @@ void main() {
     ]);
     await withKey(tester, LogicalKeyboardKey.shiftLeft, LogicalKeyboardKey.tab);
     expect(focusedRole(), 'filter field');
+    await settle(tester);
+  });
+
+  testWidgets('with the ignore pane hidden, Tab skips its two stops', (tester) async {
+    await openShell(tester, rows: [untracked('a.txt')]);
+    final seen = <String?>[focusedRole()];
+    for (var i = 0; i < 3; i++) {
+      await press(tester, LogicalKeyboardKey.tab);
+      seen.add(focusedRole());
+    }
+    expect(seen, ['file list', 'commit message', 'filter field', 'file list']);
     await settle(tester);
   });
 

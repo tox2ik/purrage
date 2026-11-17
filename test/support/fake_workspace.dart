@@ -24,6 +24,15 @@ class MemoryPrefs extends Prefs {
 
   @override
   Future<void> setEditorCommand(String? value) async => saved = value;
+
+  /// The ignore pane's width, kept here instead of in `prefs.json`.
+  double? paneWidth;
+
+  @override
+  double? get ignorePaneWidth => paneWidth;
+
+  @override
+  Future<void> setIgnorePaneWidth(double width) async => paneWidth = width;
 }
 
 /// A workspace over [repo] that touches no git, no file and no process: the
