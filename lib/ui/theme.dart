@@ -12,6 +12,9 @@ const Color _accent = Color(0xFF6E79D6);
 const Color _accentSoft = Color(0xFF232741);
 const Color _danger = Color(0xFFEB5757);
 
+/// Directories take Windows Explorer's folder amber, muted for a dark sheet.
+const Color purrageFolder = Color(0xFFE8C46B);
+
 const ColorScheme purrageScheme = ColorScheme(
   brightness: Brightness.dark,
   primary: _accent,

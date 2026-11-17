@@ -6,6 +6,7 @@ import '../state/changes.dart';
 import '../state/status.dart';
 import 'changes_view.dart';
 import 'filter_field.dart';
+import 'theme.dart';
 
 /// The list itself: one row per staged/changed/untracked path, grouped by
 /// section, with the focused row kept in view.
@@ -284,7 +285,7 @@ class RowTile extends StatelessWidget {
                     row.name,
                     overflow: TextOverflow.ellipsis,
                     maxLines: 1,
-                    style: chosen ? style?.copyWith(fontWeight: FontWeight.w600) : style,
+                    style: _nameStyle(style, chosen),
                   ),
                 ),
                 // The marker belongs to the base name, not to a column of its own.
@@ -297,6 +298,15 @@ class RowTile extends StatelessWidget {
           ),
         ],
       );
+
+  /// A directory takes Windows Explorer's folder colour, so a folder reads as a
+  /// folder at a glance; a chosen row is bold on top of that.
+  TextStyle? _nameStyle(TextStyle? style, bool chosen) {
+    var out = style;
+    if (row.path.endsWith('/')) out = out?.copyWith(color: purrageFolder);
+    if (chosen) out = out?.copyWith(fontWeight: FontWeight.w600);
+    return out;
+  }
 
   String get _badge => switch (row.kind) {
         RowKind.added => 'A',
