@@ -2,8 +2,9 @@ name: ci
 
 # The app ships on Windows, but nothing in lib/ or test/ needs a window: the
 # seams in state/ fake the process, the environment and the file system, so the
-# whole suite runs headless on a Linux runner. That is the cheap gate on every
-# push; release.yml is what builds the .exe.
+# same suite runs headless on both runners. Linux is the cheap gate that catches
+# a stray backslash; Windows is the platform it actually ships on, and the one
+# that knows what a drive letter and a CRLF are. release.yml builds the .exe.
 
 on:
   push:
@@ -17,9 +18,19 @@ concurrency:
 
 jobs:
   test:
-    name: flutter test (linux)
-    runs-on: ubuntu-latest
+    name: flutter test (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 30
+
+    strategy:
+      # One platform going red must not hide the other's answer.
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux
+            os: ubuntu-latest
+          - name: windows
+            os: windows-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -42,7 +53,6 @@ jobs:
         run: |
           git config --global user.email "ci@example.com"
           git config --global user.name "purrage ci"
-          git --version
 
       # 32 deprecated_member_use infos come from the Flutter 3.50 rename of
       # package:flutter/material.dart; they are not ours to fix in this change,
