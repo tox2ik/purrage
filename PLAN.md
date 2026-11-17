@@ -32,6 +32,10 @@ and the code disagree, fix one of them deliberately.
   a `.gitignore` in the focused file's own folder, which is what git recommends for a subtree
   (see "Where a rule lives").
 - Editor: auto-detected, chosen in a **Settings mode**, with **nvim-qt first**.
+- A **Browse mode** lists the repositories found around the current directory, so the app can move
+  between checkouts; the starting directory is not the only one it can manage (see "Browse").
+- The look follows a quiet Linear-style sheet: near-black surfaces, hairline dividers, one indigo
+  accent, compact rows. Directory base names take Windows Explorer's folder amber.
 
 ## The status model
 
@@ -117,9 +121,48 @@ The ignore pane becomes a list of `.gitignore` files, not one file:
 - A nested `.gitignore` the app just created shows up as an untracked row in the list, so tracking
   it is the same gesture as tracking anything else.
 
+## Browse (Alt+2)
+
+- On start it scans the directory the app was started in, up to **five levels deep**, and lists
+  every folder that holds a `.git` (folder for a clone, file for a worktree or submodule). The entry
+  is the **working directory**, never `.git`; a found repository is not descended into, links are
+  never followed, and `node_modules`, `build`, `.dart_tool`, `target`, `dist`, `.venv`, `.gradle`,
+  `.idea`, `.vscode` and `.cache` are skipped so a home folder stays walkable.
+- Clicking an entry opens that repository: a fresh `Repo`, `Changes` and ignore pane, then the
+  Changes mode, so add/ignore work on the directory just picked.
+- **Up one level** moves the browse root to the parent and rescans; a **refresh** button rescans the
+  same directory; the header shows the path, a spinner while scanning and the repository count.
+- On Windows a **drive picker** lists every mounted drive (`A:`…`Z:` that exists) and switches the
+  browse root. On Linux this would have to detect real mount points and skip pseudo filesystems;
+  out of scope for now.
+- A scan that runs while another is in flight is folded into one; the UI never waits on it.
+
+## Console (Alt+4) and failure reporting
+
+- One `ConsoleLog` for the process. It is created in `main()` and shared by the window, the error
+  handlers and the Shell, so a failed `Repo.open` and an uncaught exception land in the same list.
+- Every failure carries an `ActionFailure`: a one-line summary, a detail block (origin chain,
+  parameters, `cwd`, command line) and the tool's own code (`exit 1`, `errno 5`).
+- `Shell.say()` shows a notice **and** adds a console row, tagged with the action that failed;
+  `Shell.report()` adds a console row for a success — `tracked 3 files`,
+  `command: git add -- …` — because a command that ran should be inspectable.
+- App-wide handlers: `FlutterError.onError`, `PlatformDispatcher.instance.onError` and a
+  `runZonedGuarded` wrapper; each entry carries the interaction in progress
+  (`Changes: ignore dialog for <path>`) and the first 14 stack frames.
+- The console is newest-first, bounded at 200 rows, has a Clear button, and expands a row to its
+  selectable detail. A success prints normally, a failure in the error colour, and only a real
+  tool code gets a badge.
+
+## Notices
+
+- A failure shows a bar above the commit strip whose countdown **pauses while the mouse is over
+  it** and resumes with the time that was left. It can be dismissed with its close button.
+- Successes are silent on screen: the row moving between sections is the feedback.
+
 ## Keys (the Ops contract)
 
-- Modes: `Alt+1` Changes, `Alt+2` Settings, `Alt+3` Help; `Alt+]` / `Alt+[` cycle; `?` opens Help.
+- Modes: `Alt+1` Changes, `Alt+2` Browse, `Alt+3` Settings, `Alt+4` Console, `Alt+5` Help; `Alt+]` /
+  `Alt+[` cycle; `?` opens Help.
 - Motion: Up/Down, `j`/`k`, and WASD via the shared `navKey(event)`; never bound per handler.
 - Selection: `Shift`+Up/Down grows the highlight from the anchor, one row per press; `Ctrl+Enter`
   turns the cursor row's highlight on or off. The highlighted rows are what every action changes,
@@ -165,23 +208,28 @@ The ignore pane becomes a list of `.gitignore` files, not one file:
 
 ## Shape of the code
 
-- `lib/ui/shell.dart` — mode rail, app-wide keys, gives the keyboard to the shown mode.
-- `lib/ui/` — `file_list.dart`, `filter_field.dart`, `ignore_dialog.dart`, `commit_bar.dart`,
-  `settings_view.dart`, `help_view.dart` (with `keyTable`), `nav_keys.dart`, `key_sequence.dart`,
-  `hover_row.dart`, `reveal.dart`, `error_view.dart`, `debug_bar.dart`, `confirm_dialog.dart`.
-- `lib/state/` — `repo.dart` (the `git` package wrapper), `status.dart` (parser + model),
-  `changes.dart` (ChangeNotifier: sections, selection, actions), `ignore_rules.dart`,
-  `editors.dart`, `prefs.dart`, `timing.dart`.
+- `lib/ui/shell.dart` — mode rail, app-wide keys, gives the keyboard to the shown mode, and owns the
+  repository it shows (Browse can replace it: a new `Repo`, `Changes`, ignore pane and scan).
+- `lib/ui/` — `file_list.dart`, `filter_field.dart`, `ignore_dialog.dart`, `ignore_pane.dart`,
+  `browse_view.dart`, `console_view.dart`, `notice_bar.dart`, `commit_bar.dart`, `settings_view.dart`,
+  `help_view.dart` (with `keyTable`), `debug_bar.dart`, `theme.dart` (every colour and size),
+  `nav_keys.dart`.
+- `lib/state/` — `repo.dart` (the `git` package wrapper), `git_repo.dart` (the seam the UI talks to),
+  `status.dart` (parser + model), `changes.dart` (sections, selection, optimistic actions),
+  `browser.dart` (repository scan), `failure.dart` + `console.dart` + `diagnostics.dart` (reporting),
+  `notices.dart`, `ignore_rules.dart`, `ignore_files.dart`, `editors.dart`, `prefs.dart`.
 - Follow `~/ws/nvimos-ops/declarative_ui_guidelines.md`: ≤3 levels of inline layout nesting,
   `build` under 50 lines, lists from data with builders, no logic in event handlers.
 
 ## Tests
 
-- `dart_test.yaml`: `concurrency: 2`, `timeout: 55s`.
+- `dart_test.yaml`: `concurrency: 2`, `timeout: 22s`; `make test` passes the same.
+- Tests and builds run **when asked**: the working rhythm in `CLAUDE.md` wins over any habit here.
 - Parsers get unit tests with fixture strings, no git needed.
 - Repo tests build a throwaway repo per test (`makeRepo()` helper), set `core.fsmonitor=false`,
   and register cleanup so no `purrage_*` folder survives a run.
-- Widget tests use a fake clock: `pump(duration)`, no `pumpAndSettle` with real timers.
+- Widget tests use a fake clock: `pump(duration)`, no `pumpAndSettle` with real timers, and no real
+  git or file I/O — `test/support/fake_repo.dart` plus `Shell(seeded:)` is the seam for that.
 - `make analyze` clean apart from the known `material.dart` deprecation infos.
 
 ## References used

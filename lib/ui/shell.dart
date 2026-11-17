@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../state/browser.dart';
 import '../state/changes.dart';
 import '../state/console.dart';
 import '../state/diagnostics.dart';
@@ -12,7 +13,9 @@ import '../state/git_repo.dart';
 import '../state/ignore_files.dart';
 import '../state/notices.dart';
 import '../state/prefs.dart';
+import '../state/repo.dart';
 import 'changes_view.dart';
+import 'browse_view.dart';
 import 'console_view.dart';
 import 'debug_bar.dart';
 import 'help_view.dart';
@@ -22,17 +25,19 @@ import 'notice_bar.dart';
 import 'settings_view.dart';
 
 /// The modes the app shows; the rail lists them in this order.
-enum Mode { changes, settings, console, help }
+enum Mode { changes, browse, settings, console, help }
 
 extension on Mode {
   String get label => switch (this) {
         Mode.changes => 'Changes',
+        Mode.browse => 'Browse',
         Mode.settings => 'Settings',
         Mode.console => 'Console',
         Mode.help => 'Help',
       };
   IconData get icon => switch (this) {
         Mode.changes => Icons.description_outlined,
+        Mode.browse => Icons.folder_open_outlined,
         Mode.settings => Icons.settings_outlined,
         Mode.console => Icons.terminal,
         Mode.help => Icons.help_outline,
@@ -56,7 +61,10 @@ class Shell extends StatefulWidget {
 }
 
 class ShellState extends State<Shell> {
-  late final Changes changes = widget.seeded ?? Changes(widget.repo);
+  /// The repository being shown; Browse can replace it.
+  late GitRepo repo = widget.repo;
+  late Changes changes = widget.seeded ?? Changes(repo);
+  late RepoBrowser browser = RepoBrowser(startDirectory: repo.path);
   final FocusNode shellFocus = FocusNode(debugLabel: 'shell');
   final TextEditingController commitController = TextEditingController();
   final FocusNode commitFocus = FocusNode(debugLabel: 'commit message');
@@ -64,7 +72,7 @@ class ShellState extends State<Shell> {
   final FocusNode filterFocus = FocusNode(debugLabel: 'filter');
   final Prefs prefs = Prefs();
   late final Editors editors = Editors(prefs: prefs);
-  late final IgnorePaneState ignorePane = IgnorePaneState(widget.repo);
+  late IgnorePaneState ignorePane = IgnorePaneState(repo);
   final Notices notices = Notices();
   late final ConsoleLog console = widget.console ?? ConsoleLog();
   /// The ignore pane's highlight asks git, so it waits for the cursor to settle.
@@ -77,9 +85,58 @@ class ShellState extends State<Shell> {
     super.initState();
     changes.addListener(onChangesChanged);
     loadEverything();
+    // The Browse list is wanted as soon as the window is up, so it scans in the
+    // background rather than on the frame that shows the changes.
+    unawaited(browser.scan());
     prefs.load().then((_) {
       if (mounted) setState(() => editorCommand = prefs.editorCommand);
     });
+  }
+
+  /// Browse: open another repository, which means new state for everything that
+  /// is tied to the old one.
+  Future<void> openRepository(String path) async {
+    if (widget.seeded != null) {
+      say('this session was seeded with a repository; Browse cannot switch it');
+      return;
+    }
+    Diagnostics.enter('Browse: open $path');
+    try {
+      final opened = await Repo.open(path);
+      final next = Changes(opened);
+      await next.load();
+      final pane = IgnorePaneState(opened);
+      if (!mounted) return;
+      changes.removeListener(onChangesChanged);
+      changes.dispose();
+      ignorePane.dispose();
+      setState(() {
+        repo = opened;
+        changes = next;
+        ignorePane = pane;
+        mode = Mode.changes;
+      });
+      changes.addListener(onChangesChanged);
+      await loadEverything();
+      browser.directory = opened.path;
+      unawaited(browser.scan());
+      console.add(
+        ActionFailure.done(
+          summary: 'opened ${opened.path}',
+          detail: 'origin: Shell.openRepository -> Repo.open\ncwd: ${opened.path}',
+          origin: 'Shell.openRepository',
+        ),
+        action: 'browse',
+      );
+    } on Exception catch (error) {
+      say(
+        'cannot open $path',
+        failure: ActionFailure.fromError(error, origin: 'Shell.openRepository -> Repo.open', params: {'path': path}),
+        action: 'browse',
+      );
+    } finally {
+      Diagnostics.leave();
+    }
   }
 
   @override
@@ -275,7 +332,7 @@ class ShellState extends State<Shell> {
         detail: [
           'origin: ${changes.lastOrigin ?? '-'}',
           'changed: ${changes.lastChanged}',
-          'cwd: ${widget.repo.path}',
+          'cwd: ${repo.path}',
           if (changes.lastCommand != null) 'command: ${changes.lastCommand}',
         ].join('\n'),
         origin: changes.lastOrigin,
@@ -296,7 +353,7 @@ class ShellState extends State<Shell> {
       return;
     }
     try {
-      await editors.open(file: '${widget.repo.path}/${row.path}');
+      await editors.open(file: '${repo.path}/${row.path}');
     } on EditorException catch (error) {
       say(
         error.message,
@@ -435,7 +492,7 @@ class ShellState extends State<Shell> {
   /// The Settings "Test" button: open the plan from the repo root.
   Future<void> openTestFile(String file) async {
     try {
-      await editors.open(file: '${widget.repo.path}/$file');
+      await editors.open(file: '${repo.path}/$file');
     } on EditorException catch (error) {
       say(
         error.message,
@@ -457,7 +514,7 @@ class ShellState extends State<Shell> {
       return;
     }
     try {
-      await editors.open(file: '${widget.repo.path}/${file.path}');
+      await editors.open(file: '${repo.path}/${file.path}');
     } on EditorException catch (error) {
       say(
         error.message,
@@ -480,7 +537,7 @@ class ShellState extends State<Shell> {
     }
     final relative = row.folder.isEmpty ? '.gitignore' : '${row.folder}/.gitignore';
     try {
-      await widget.repo.createIgnoreFile('${widget.repo.path}/$relative');
+      await repo.createIgnoreFile('${repo.path}/$relative');
       await ignorePane.load();
       ignorePane.select(relative);
       await ignorePane.focusPath(row.path);
@@ -491,7 +548,7 @@ class ShellState extends State<Shell> {
         failure: ActionFailure.fromError(
           error,
           origin: 'Shell.newIgnoreHere -> Repo.createIgnoreFile',
-          params: {'file': relative, 'cwd': widget.repo.path},
+          params: {'file': relative, 'cwd': repo.path},
         ),
         action: 'new ignore',
       );
@@ -500,9 +557,10 @@ class ShellState extends State<Shell> {
 
   static const _altDigits = {
     Mode.changes: LogicalKeyboardKey.digit1,
-    Mode.settings: LogicalKeyboardKey.digit2,
-    Mode.console: LogicalKeyboardKey.digit3,
-    Mode.help: LogicalKeyboardKey.digit4,
+    Mode.browse: LogicalKeyboardKey.digit2,
+    Mode.settings: LogicalKeyboardKey.digit3,
+    Mode.console: LogicalKeyboardKey.digit4,
+    Mode.help: LogicalKeyboardKey.digit5,
   };
 
   @override
@@ -556,6 +614,7 @@ class ShellState extends State<Shell> {
             onNewIgnore: newIgnoreHere,
             onCommit: commitNow,
           ),
+          BrowseView(browser: browser, current: repo.path, onOpen: openRepository),
           SettingsView(
             detect: editors.detect,
             chosenCommand: editorCommand ?? '',
