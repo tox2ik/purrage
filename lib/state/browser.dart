@@ -32,7 +32,27 @@ class RepoBrowser extends ChangeNotifier {
     '.idea',
     '.vscode',
     '.cache',
+    'obj',
+    'bin',
+    'out',
+    'coverage',
+    '.next',
+    '.turbo',
+    '.terraform',
+    'vendor',
+    'Pods',
+    'AppData',
+    '__pycache__',
+    '.npm',
+    '.pnpm-store',
+    '.nuget',
+    '.rustup',
+    '.cargo',
   };
+
+  /// A ceiling on how many directories one scan will open. Five levels below a
+  /// drive root can still be enormous; the user can narrow the folder instead.
+  static const maxDirectories = 20000;
 
   String directory;
 
@@ -97,25 +117,31 @@ class RepoBrowser extends ChangeNotifier {
     notifyListeners();
 
     final found = <String>[];
-    final invalid = StringBuffer();
     var visited = 0;
+    var stopped = false;
 
     final queue = <_Node>[_Node(directory, 0)];
     while (queue.isNotEmpty) {
       final node = queue.removeAt(0);
-      visited++;
-      List<FileSystemEntity> children;
-      try {
-        children = await Directory(node.path).list(followLinks: false).toList();
-      } on FileSystemException catch (error) {
-        if (invalid.isEmpty) invalid.write('${node.path}: ${error.message}');
-        continue;
+      if (++visited > maxDirectories) {
+        stopped = true;
+        break;
       }
-      if (children.any((child) => child.path.endsWith('/.git') || child.path.endsWith(r'\.git'))) {
+
+      // One stat, before any listing: a folder that holds a `.git` is a hit, and
+      // its own tree is not walked. Listing a directory is the expensive call.
+      if (await _hasGit(node.path)) {
         found.add(node.path);
         continue;
       }
       if (node.depth >= maxDepth) continue;
+
+      List<FileSystemEntity> children;
+      try {
+        children = await Directory(node.path).list(followLinks: false).toList();
+      } on FileSystemException {
+        continue;
+      }
       for (final child in children) {
         if (child is! Directory) continue;
         if (FileSystemEntity.isLinkSync(child.path)) continue;
@@ -123,12 +149,15 @@ class RepoBrowser extends ChangeNotifier {
         if (skip.contains(name)) continue;
         queue.add(_Node(_clean(child.path), node.depth + 1));
       }
-      // Let the UI breathe once in a while on a big tree.
-      if (visited % 40 == 0) await Future<void>.delayed(Duration.zero);
+      // Let the UI breathe every few directories: on Windows a listing can block
+      // the event loop for a moment.
+      if (visited % 8 == 0) await Future<void>.delayed(Duration.zero);
     }
 
     repos = found..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-    if (invalid.isNotEmpty) error = invalid.toString();
+    if (stopped) {
+      error = 'stopped after $maxDirectories directories; narrow the folder to see more';
+    }
     scanning = false;
     notifyListeners();
 
@@ -136,6 +165,13 @@ class RepoBrowser extends ChangeNotifier {
       _again = false;
       await _scan(empty: false);
     }
+  }
+
+  /// A `.git` of its own: a folder for a clone, a file for a worktree or a
+  /// submodule. One `type` call, no listing.
+  static Future<bool> _hasGit(String path) async {
+    final kind = await FileSystemEntity.type('$path/.git');
+    return kind != FileSystemEntityType.notFound;
   }
 }
 
