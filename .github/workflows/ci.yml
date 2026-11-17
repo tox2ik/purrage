@@ -1,0 +1,56 @@
+name: ci
+
+# The app ships on Windows, but nothing in lib/ or test/ needs a window: the
+# seams in state/ fake the process, the environment and the file system, so the
+# whole suite runs headless on a Linux runner. That is the cheap gate on every
+# push; release.yml is what builds the .exe.
+
+on:
+  push:
+    branches: [develop]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: flutter test (linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.50.0
+          channel: stable
+          cache: true
+
+      - name: flutter version
+        run: flutter --version
+
+      - name: dependencies
+        run: flutter pub get
+
+      # The suite shells out to real `git` in throwaway repos, so the runner's
+      # git has to be there and has to be able to commit.
+      - name: git identity for the temp repos
+        run: |
+          git config --global user.email "ci@example.com"
+          git config --global user.name "purrage ci"
+          git --version
+
+      # 32 deprecated_member_use infos come from the Flutter 3.50 rename of
+      # package:flutter/material.dart; they are not ours to fix in this change,
+      # so infos are allowed and warnings/errors still fail the build.
+      - name: analyze
+        run: flutter analyze --no-fatal-infos
+
+      # dart_test.yaml sets a 22s per-test timeout, which is generous on a dev
+      # box and tight on a shared runner; the CLI flag wins over the file.
+      - name: test
+        run: flutter test --timeout 60s

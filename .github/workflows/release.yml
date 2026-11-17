@@ -1,0 +1,66 @@
+name: release
+
+# Manual, because a release is a decision: run this, type the version, get a
+# Windows build on a GitHub release. The version is the day it was cut, Ymd
+# (20261117), and it lands in the exe as 2026.11.17 / build 20261117.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Ymd version, e.g. 20261117"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: build windows x64 and publish
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.50.0
+          channel: stable
+          cache: true
+
+      - name: dependencies
+        run: flutter pub get
+
+      - name: test first, a release that does not pass is not a release
+        run: flutter test --timeout 60s
+
+      # 20261117 -> 2026.11.17, the dotted form the exe's version resource wants.
+      - name: version
+        shell: pwsh
+        run: |
+          $v = "${{ inputs.version }}"
+          if ($v -notmatch '^\d{8}$') { throw "version must be Ymd, 8 digits, got '$v'" }
+          $dotted = "$($v.Substring(0,4)).$($v.Substring(4,2)).$($v.Substring(6,2))"
+          "BUILD_NAME=$dotted" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "BUILD_NUMBER=$v"    | Out-File -FilePath $env:GITHUB_ENV -Append
+          "ASSET=purrage-$v-windows-x64.zip" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: build
+        run: flutter build windows --release --build-name=$env:BUILD_NAME --build-number=$env:BUILD_NUMBER
+
+      - name: zip
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath "dist/$env:ASSET" -Force
+          Get-Item "dist/$env:ASSET" | Format-List Name,Length
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ inputs.version }}
+          name: ${{ inputs.version }}
+          files: dist/*.zip
+          generate_release_notes: true
+          fail_on_unmatched_files: true
