@@ -1,7 +1,7 @@
 ---
 id: task-4
 title: Fixed row height and index-based reveal
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-17'
 labels:
@@ -34,8 +34,25 @@ for the headers), and reveal computes the row's top from its flat index and call
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 the row height and the header height are tokens in `lib/ui/theme.dart`
-- [ ] #2 the list builds with a fixed extent, and `FileList` holds no GlobalKey
-- [ ] #3 a widget test puts the cursor on row 400 of 500 (seeded FakeRepo) and finds it on screen
-- [ ] #4 a move inside the viewport does not scroll (the existing rule)
+- [x] #1 the row height and the header height are tokens in `lib/ui/theme.dart`
+- [x] #2 the list builds with a fixed extent, and `FileList` holds no GlobalKey
+- [x] #3 a widget test puts the cursor on row 400 of 500 (seeded FakeRepo) and finds it on screen
+- [x] #4 a move inside the viewport does not scroll (the existing rule)
 <!-- AC:END -->
+
+## Notes
+
+- Tokens: `T.rowHeight` (24) and `T.sectionHeaderHeight` (30) in `theme.dart`, in a new
+  `abstract final class T` that task-20 extends with the rest of the scales.
+- `lib/ui/reveal.dart` is Ops' `revealRange` (jumpTo, the least scroll). The row's top is
+  `headersAbove(index) * header + index * row` (`Changes.headersAbove` reads the cached section
+  counts). When a reload grew the list and its new length is not laid out yet, the reveal runs
+  again after the frame.
+- `FileList` re-subscribes in `didUpdateWidget` when Browse swaps the `Changes` (it kept
+  listening to the old one).
+- Tests (`test/reveal_test.dart`): row 400 of 500, a reload far down after scrolling away, a
+  reload that grows the list, no scroll inside the viewport and the least scroll past it, the
+  fixed extent, and a source grep for `GlobalKey`.
+- Measure (2,000 rows, debug, CPU shared with two other test runs, so noisy): inside the
+  viewport `changes.move/frame` p50 ~76 ms -> ~56 ms. Past the viewport the old code queued an
+  animation the frame never ran (the list did not move); now every move scrolls, ~95 ms p50.

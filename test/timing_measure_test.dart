@@ -4,10 +4,9 @@ import 'package:purrage/state/changes.dart';
 import 'package:purrage/state/ignore_files.dart';
 import 'package:purrage/state/status.dart';
 import 'package:purrage/timing/ui_timing.dart';
-import 'package:purrage/ui/changes_view.dart';
-import 'package:purrage/ui/theme.dart';
 
 import 'support/fake_repo.dart';
+import 'support/pump_changes.dart';
 
 /// A working tree the size of a busy home folder: [n] rows over the three
 /// sections, spread over folders of a few depths.
@@ -87,39 +86,34 @@ void main() {
     final changes = Changes(repo);
     final pane = IgnorePaneState(repo);
     await changes.load();
-    await tester.pumpWidget(MaterialApp(
-      theme: buildTheme(),
-      home: Scaffold(
-        body: ChangesView(
-          changes: changes,
-          commitController: TextEditingController(),
-          commitFocus: FocusNode(),
-          listFocus: FocusNode(),
-          onIgnore: () {},
-          onQuickIgnore: () {},
-          onTrack: () {},
-          onUntrack: () {},
-          onOpen: () {},
-          onReload: () {},
-          filterController: TextEditingController(),
-          filterFocus: FocusNode(),
-          ignoreState: pane,
-          onOpenIgnore: () {},
-          onNewIgnore: () {},
-          onCommit: (_) async {},
-        ),
-      ),
-    ));
-    await tester.pump();
+    await pumpChangesView(tester, changes, pane);
     UiTiming.instance.samples.clear();
 
+    // Inside the viewport: no scroll, only the rebuild a move causes.
+    for (var round = 0; round < 5; round++) {
+      for (var i = 0; i < 10; i++) {
+        await changes.move(1);
+        await tester.pump();
+      }
+      for (var i = 0; i < 10; i++) {
+        await changes.move(-1);
+        await tester.pump();
+      }
+    }
+    // ignore: avoid_print
+    print('\n$rows rows, inside the viewport, with the frame\n'
+        '${UiTiming.instance.table(filter: 'changes.move')}');
+    expect(UiTiming.instance.samples['changes.move/frame'], hasLength(100));
+
+    // Down past the viewport: every move scrolls the list by one row.
+    UiTiming.instance.samples.clear();
     for (var i = 0; i < 100; i++) {
       await changes.move(1);
       await tester.pump();
     }
-
     // ignore: avoid_print
-    print('\n$rows rows, with the frame\n${UiTiming.instance.table(filter: 'changes.move')}');
+    print('\n$rows rows, scrolling, with the frame\n'
+        '${UiTiming.instance.table(filter: 'changes.move')}');
     expect(UiTiming.instance.samples['changes.move/frame'], hasLength(100));
     await tester.pumpWidget(const SizedBox());
     changes.dispose();

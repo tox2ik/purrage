@@ -132,9 +132,14 @@ class SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = Theme.of(context).textTheme.labelMedium;
+    // The list gives it exactly T.sectionHeaderHeight; the label sits at the
+    // bottom, close to its rows.
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-      child: Text('${_label(section)} ($count)', style: style),
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+      child: Align(
+        alignment: Alignment.bottomLeft,
+        child: Text('${_label(section)} ($count)', style: style, maxLines: 1),
+      ),
     );
   }
 

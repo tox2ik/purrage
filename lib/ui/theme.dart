@@ -46,6 +46,19 @@ const ColorScheme purrageScheme = ColorScheme(
   inversePrimary: _accent,
 );
 
+/// The design tokens widgets read instead of writing a number inline.
+///
+/// The list's heights are fixed: the file list places a row by its index
+/// (`itemExtentBuilder`), and reveal computes where the cursor row is without
+/// asking the row's widget.
+abstract final class T {
+  /// One file row in the Changes list.
+  static const double rowHeight = 24;
+
+  /// A section heading (`Staged (3)`) in the Changes list.
+  static const double sectionHeaderHeight = 30;
+}
+
 // Linear-style type: small, tight, no drama.
 const _rows = TextStyle(fontSize: 12.5, height: 1.25, color: _text);
 

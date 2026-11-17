@@ -6,6 +6,7 @@ import '../state/changes.dart';
 import '../state/status.dart';
 import 'changes_view.dart';
 import 'filter_field.dart';
+import 'reveal.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
@@ -46,7 +47,6 @@ class FileList extends StatefulWidget {
 
 class _FileListState extends State<FileList> {
   final ScrollController scroll = ScrollController();
-  final Map<int, GlobalKey> keys = {};
 
   Changes get changes => widget.changes;
 
@@ -57,26 +57,42 @@ class _FileListState extends State<FileList> {
   }
 
   @override
+  void didUpdateWidget(FileList old) {
+    super.didUpdateWidget(old);
+    // Browse can open another repository, which brings a new Changes.
+    if (old.changes == widget.changes) return;
+    old.changes.removeListener(_reveal);
+    widget.changes.addListener(_reveal);
+  }
+
+  @override
   void dispose() {
     changes.removeListener(_reveal);
     scroll.dispose();
     super.dispose();
   }
 
-  /// Keep the focused row on screen after a move.
+  /// Keep the focused row on screen after a move, a click or a reload.
+  ///
+  /// Every row and header has a fixed height, so the row's top follows from its
+  /// index: no widget has to be built to be found. A row already in view does
+  /// not scroll (centring every move made the list drag behind the cursor).
+  /// When the list has not laid out its new length yet (a reload that grew it),
+  /// the reveal runs again after the frame.
   void _reveal() {
-    final target = keys[changes.index]?.currentContext;
-    if (target == null) return;
-    final rowBox = target.findRenderObject();
-    final listBox = scroll.position.context.storageContext.findRenderObject();
-    if (rowBox is RenderBox && listBox is RenderBox && rowBox.hasSize && listBox.hasSize) {
-      final offset = rowBox.localToGlobal(Offset.zero, ancestor: listBox);
-      final bottom = offset.dy + rowBox.size.height;
-      // Already in view: do not scroll. Centring every move is what made the
-      // list feel like it was dragging behind the cursor.
-      if (offset.dy >= 0 && bottom <= listBox.size.height) return;
-    }
-    Scrollable.ensureVisible(target, alignment: 0.5, duration: const Duration(milliseconds: 90));
+    if (_revealNow()) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _revealLater());
+  }
+
+  void _revealLater() {
+    if (mounted) _revealNow();
+  }
+
+  bool _revealNow() {
+    if (changes.visible.isEmpty) return true;
+    final index = changes.index;
+    final top = changes.headersAbove(index) * T.sectionHeaderHeight + index * T.rowHeight;
+    return revealRange(scroll, top, T.rowHeight);
   }
 
   // The row buttons act on their row, or on the selection when the row is in
@@ -136,9 +152,16 @@ class _FileListState extends State<FileList> {
       child: ListView.builder(
         controller: scroll,
         itemCount: items.length,
+        itemExtentBuilder: (at, _) => _extent(items, at),
         itemBuilder: (context, at) => _item(items[at]),
       ),
     );
+  }
+
+  /// The builder asks past the end once to learn the list is over.
+  static double? _extent(List<ListItem> items, int at) {
+    if (at >= items.length) return null;
+    return items[at] is HeaderItem ? T.sectionHeaderHeight : T.rowHeight;
   }
 
   Widget _item(ListItem item) => switch (item) {
@@ -148,7 +171,6 @@ class _FileListState extends State<FileList> {
 
   Widget _row(StatusRow row, int index) {
     return FileRow(
-      key: keys[index] ??= GlobalKey(),
       row: row,
       focused: index == changes.index,
       chosen: changes.isSelected(row),

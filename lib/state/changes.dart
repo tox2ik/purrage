@@ -245,15 +245,30 @@ class Changes extends ChangeNotifier {
 
   void _applyFilter() {
     _visible = filterRows(_rows, _filter);
-    _items = _buildItems(_visible);
+    _sectionCounts = List<int>.filled(Section.values.length, 0);
+    for (final row in _visible) {
+      _sectionCounts[row.section.index]++;
+    }
+    _items = _buildItems(_visible, _sectionCounts);
+  }
+
+  /// Visible rows per section, by [Section.index].
+  List<int> _sectionCounts = List<int>.filled(Section.values.length, 0);
+
+  /// How many section headers sit above row [index] of [visible], its own
+  /// included: with fixed heights, that and the index place the row.
+  int headersAbove(int index) {
+    if (index < 0 || index >= _visible.length) return 0;
+    final section = _visible[index].section.index;
+    var headers = 0;
+    for (var i = 0; i <= section; i++) {
+      if (_sectionCounts[i] > 0) headers++;
+    }
+    return headers;
   }
 
   /// Headers and rows in one flat list, with each row's index in [visible].
-  static List<ListItem> _buildItems(List<StatusRow> visible) {
-    final counts = List<int>.filled(Section.values.length, 0);
-    for (final row in visible) {
-      counts[row.section.index]++;
-    }
+  static List<ListItem> _buildItems(List<StatusRow> visible, List<int> counts) {
     final items = <ListItem>[];
     Section? current;
     for (var i = 0; i < visible.length; i++) {
