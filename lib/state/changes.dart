@@ -43,6 +43,11 @@ class Changes extends ChangeNotifier {
   bool get busy => _busy;
   String? get error => _error;
 
+  /// What is known about the list: nothing yet, git's answer, or a failure. An
+  /// empty list means "working tree clean" only once a load has succeeded.
+  LoadState get loadState => _loadState;
+  LoadState _loadState = LoadState.loading;
+
   /// The row under the cursor.
   StatusRow? get selected => _visible.isEmpty ? null : _visible[_index];
 
@@ -92,6 +97,7 @@ class Changes extends ChangeNotifier {
   /// `Ctrl+R`). Actions must not pay for it — they redraw the list, and this stat
   /// per directory row is what made scrolling stutter on Windows.
   Future<void> _scanNested(List<StatusRow> rows) async {
+    final known = _nested.length;
     final links = await repo.gitlinks();
     if (_disposed) return;
     for (final link in links) {
@@ -116,7 +122,8 @@ class Changes extends ChangeNotifier {
       // event loop while the user scrolls.
       if (++asked % 20 == 0) await Future<void>.delayed(Duration.zero);
     }
-    _notify(rows: true);
+    // Only a new marker is worth a redraw; a scan that found nothing is silent.
+    if (_nested.length > known) _notify(rows: true);
   }
 
   /// The nested-repository probe that `load()` started and nobody awaits, kept
@@ -206,8 +213,10 @@ class Changes extends ChangeNotifier {
       _index = _indexAfterReload(keepPath);
       _selectCursorIfEmpty();
       _error = null;
+      _loadState = LoadState.loaded;
     } on GitException catch (error) {
       _error = error.message;
+      _loadState = LoadState.failed;
     } finally {
       _busy = false;
       _notify(rows: true, cursor: true, status: true);
@@ -927,6 +936,18 @@ class _IgnorePlan {
 
   /// The file and the rule: two plans with the same key write the same line.
   String get key => '${target.path}\u0000$pattern';
+}
+
+/// How far the first `git status` has got.
+enum LoadState {
+  /// No answer yet: the list says it is reading, not that the tree is clean.
+  loading,
+
+  /// The last load succeeded; an empty list really is a clean tree.
+  loaded,
+
+  /// The last load failed; the error banner says why.
+  failed,
 }
 
 /// What the ignore dialog shows before anything is written.

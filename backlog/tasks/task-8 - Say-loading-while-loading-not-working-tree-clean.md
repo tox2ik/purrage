@@ -1,7 +1,7 @@
 ---
 id: task-8
 title: Say loading while loading, not "working tree clean"
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-17'
 labels:
@@ -28,7 +28,21 @@ after a successful load with no rows, "working tree clean". The nested-repositor
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 `Changes` has a `loaded` (or a load state enum) the view reads
-- [ ] #2 widget tests: a FakeRepo whose status is held open shows the loading line, a failing one shows only the banner, an empty one shows "working tree clean"
-- [ ] #3 `_scanNested` does not notify when no nested repository was found
+- [x] #1 `Changes` has a `loaded` (or a load state enum) the view reads
+- [x] #2 widget tests: a FakeRepo whose status is held open shows the loading line, a failing one shows only the banner, an empty one shows "working tree clean"
+- [x] #3 `_scanNested` does not notify when no nested repository was found
 <!-- AC:END -->
+
+## Notes
+
+- `Changes.loadState` (`LoadState.loading` / `loaded` / `failed`), set by `load()`; a reload of a
+  loaded repo stays `loaded` while it runs, so the rows do not blink.
+- `EmptyList` in `file_list.dart` decides the empty body: nothing for the first 150 ms, then a
+  muted "reading git status…"; nothing after a failure (the banner speaks); "Nothing to commit,
+  working tree clean." only after a successful load.
+- Tests in `test/load_state_test.dart` (after the join: `FakeRepo.hold('status')` and
+  `failures['status']` from stack A): the three widget states, and the probe notifying only
+  when a nested repository was found (`_notify(rows: true)` only when the set grew).
+- A Browse switch already awaits the new checkout's first load before it swaps the state in, so
+  it never showed the new checkout as "clean" early; nothing changed there.
+- `EmptyList` sits in B's `FileList._body`; the muted line uses `T.small`.

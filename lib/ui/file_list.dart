@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -150,7 +152,7 @@ class _FileListState extends State<FileList> {
 
   Widget _body() {
     if (changes.rows.isEmpty) {
-      return const Center(child: Text('Nothing to commit, working tree clean.'));
+      return EmptyList(state: changes.loadState);
     }
     if (changes.visible.isEmpty) {
       return Center(child: Text('No path matches "${changes.filter}".'));
@@ -432,5 +434,53 @@ class _Header extends StatelessWidget {
           ),
         ],
       );
+}
+
+/// What an empty list says, from what is known: reading (quietly, and only after
+/// [quiet], so a fast status never flashes), nothing at all after a failed load
+/// (the error banner speaks), and "working tree clean" only after git said so.
+class EmptyList extends StatefulWidget {
+  const EmptyList({super.key, required this.state});
+
+  final LoadState state;
+
+  static const quiet = Duration(milliseconds: 150);
+  static const reading = 'reading git status…';
+  static const clean = 'Nothing to commit, working tree clean.';
+
+  @override
+  State<EmptyList> createState() => _EmptyListState();
+}
+
+class _EmptyListState extends State<EmptyList> {
+  Timer? _wait;
+  bool _showReading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _wait = Timer(EmptyList.quiet, showReading);
+  }
+
+  void showReading() {
+    if (mounted) setState(() => _showReading = true);
+  }
+
+  @override
+  void dispose() {
+    _wait?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final text = switch (widget.state) {
+      LoadState.loading => _showReading ? EmptyList.reading : null,
+      LoadState.failed => null,
+      LoadState.loaded => EmptyList.clean,
+    };
+    if (text == null) return const SizedBox.shrink();
+    return Center(child: Text(text, style: widget.state == LoadState.loading ? T.small : null));
+  }
 }
 
