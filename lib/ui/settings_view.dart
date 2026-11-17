@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../state/editors.dart';
+import 'widgets.dart';
 
 /// The Settings mode: which editor was found, which one is in use, and the
 /// command template it starts. All work is done by the callbacks the shell
@@ -129,7 +130,7 @@ class _Header extends StatelessWidget {
         Expanded(
           child: Text('Editor', style: Theme.of(context).textTheme.titleMedium),
         ),
-        _ActionButton(
+        SmallButton(
           label: detecting ? 'Looking…' : 'Detect again',
           tooltip: 'Look for editors on this machine again',
           icon: Icons.refresh,
@@ -184,26 +185,20 @@ class _EditorRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Tooltip(
-      message: option.detected
-          ? 'Use ${option.label}'
-          : '${option.label}: not on this machine',
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: ListTile(
-          dense: true,
-          selected: active,
-          onTap: onPick,
-          leading: Icon(
-            active ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-            color: active ? scheme.primary : null,
-          ),
-          title: Text(option.label),
-          subtitle: Text(_detail(option), style: _mono(context)),
-          trailing: active
-              ? Text('in use', style: TextStyle(color: scheme.primary))
-              : null,
+    // The whole tile is the control: the label, the path and the radio pick it.
+    return Clickable(
+      tooltip: option.detected ? 'Use ${option.label}' : '${option.label}: not on this machine',
+      child: ListTile(
+        dense: true,
+        selected: active,
+        onTap: onPick,
+        leading: Icon(
+          active ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+          color: active ? scheme.primary : null,
         ),
+        title: Text(option.label),
+        subtitle: Text(_detail(option), style: _mono(context)),
+        trailing: active ? Text('in use', style: TextStyle(color: scheme.primary)) : null,
       ),
     );
   }
@@ -251,7 +246,7 @@ class _CommandEditor extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            _ActionButton(
+            SmallButton(
               label: 'Test',
               tooltip: 'Open PLAN.md in this editor',
               icon: Icons.open_in_new,
@@ -287,40 +282,3 @@ class _CommandField extends StatelessWidget {
   }
 }
 
-/// A label that is part of its control: tooltip, pointer cursor, one button.
-class _ActionButton extends StatelessWidget {
-  const _ActionButton({
-    required this.label,
-    required this.tooltip,
-    required this.onPressed,
-    this.icon,
-    this.filled = false,
-  });
-
-  final String label;
-  final String tooltip;
-  final VoidCallback? onPressed;
-  final IconData? icon;
-  final bool filled;
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: filled
-            ? FilledButton.tonalIcon(
-                onPressed: onPressed,
-                icon: Icon(icon, size: 16),
-                label: Text(label),
-              )
-            : TextButton.icon(
-                onPressed: onPressed,
-                icon: Icon(icon, size: 16),
-                label: Text(label),
-              ),
-      ),
-    );
-  }
-}

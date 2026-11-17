@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../state/ignore_files.dart';
+import 'widgets.dart';
 
 /// The read-only `.gitignore` pane: a rail of every ignore file, the selected
 /// file's lines, and the line that matches the focused path.
@@ -103,26 +104,19 @@ class _RailItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Tooltip(
-      message: tooltip,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: InkWell(
-          onTap: onTap,
-          child: Container(
-            color: selected ? scheme.secondaryContainer : null,
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            child: Text(
-              label,
-              overflow: TextOverflow.ellipsis,
-              maxLines: 1,
-              style: TextStyle(
-                fontFamily: 'monospace',
-                fontSize: 12,
-                color: selected ? scheme.onSurface : scheme.onSurfaceVariant,
-              ),
-            ),
-          ),
+    return HoverRow(
+      tooltip: tooltip,
+      onTap: onTap,
+      decoration: BoxDecoration(color: selected ? scheme.secondaryContainer : null),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      child: Text(
+        label,
+        overflow: TextOverflow.ellipsis,
+        maxLines: 1,
+        style: TextStyle(
+          fontFamily: 'monospace',
+          fontSize: 12,
+          color: selected ? scheme.onSurface : scheme.onSurfaceVariant,
         ),
       ),
     );
@@ -166,13 +160,13 @@ class _Header extends StatelessWidget {
               spacing: 4,
               runSpacing: 4,
               children: [
-                _PaneButton(
+                SmallButton(
                   label: 'Open in editor',
                   icon: Icons.open_in_new,
                   tooltip: 'Open the selected .gitignore in the editor',
                   onPressed: onOpenInEditor,
                 ),
-                _PaneButton(
+                SmallButton(
                   label: 'New here',
                   icon: Icons.note_add_outlined,
                   tooltip: 'Create a .gitignore next to the focused file',
@@ -284,35 +278,6 @@ class _Line extends StatelessWidget {
       ),
     );
   }
-}
-
-/// A header button with the pointer cursor and a tooltip; its label is part of
-/// the control, so clicking the text does what the button does.
-class _PaneButton extends StatelessWidget {
-  const _PaneButton({
-    required this.label,
-    required this.icon,
-    required this.tooltip,
-    required this.onPressed,
-  });
-
-  final String label;
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) => Tooltip(
-        message: tooltip,
-        child: MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: TextButton.icon(
-            onPressed: onPressed,
-            icon: Icon(icon, size: 16),
-            label: Text(label),
-          ),
-        ),
-      );
 }
 
 class _ErrorLine extends StatelessWidget {

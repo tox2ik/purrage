@@ -7,6 +7,7 @@ import '../state/status.dart';
 import 'changes_view.dart';
 import 'filter_field.dart';
 import 'theme.dart';
+import 'widgets.dart';
 
 /// The list itself: one row per staged/changed/untracked path, grouped by
 /// section, with the focused row kept in view.
@@ -42,23 +43,24 @@ class _FileListState extends State<FileList> {
   final ScrollController scroll = ScrollController();
   final Map<int, GlobalKey> keys = {};
 
+  Changes get changes => widget.changes;
+
   @override
   void initState() {
     super.initState();
-    widget.changes.addListener(_reveal);
+    changes.addListener(_reveal);
   }
 
   @override
   void dispose() {
-    widget.changes.removeListener(_reveal);
+    changes.removeListener(_reveal);
     scroll.dispose();
     super.dispose();
   }
 
   /// Keep the focused row on screen after a move.
   void _reveal() {
-    final index = widget.changes.index;
-    final target = keys[index]?.currentContext;
+    final target = keys[changes.index]?.currentContext;
     if (target == null) return;
     final rowBox = target.findRenderObject();
     final listBox = scroll.position.context.storageContext.findRenderObject();
@@ -72,9 +74,31 @@ class _FileListState extends State<FileList> {
     Scrollable.ensureVisible(target, alignment: 0.5, duration: const Duration(milliseconds: 90));
   }
 
+  // The row buttons act on their row, or on the selection when the row is in
+  // it: that rule is `Changes.target`, not the view's.
+  void _track(int index) => _onRow(index, widget.onTrack);
+  void _untrack(int index) => _onRow(index, widget.onUntrack);
+  void _ignore(int index) => _onRow(index, widget.onIgnore);
+  void _quickIgnore(int index) => _onRow(index, widget.onQuickIgnore);
+
+  void _onRow(int index, VoidCallback action) {
+    changes.target(index);
+    action();
+  }
+
+  /// A double click opens the row it is on, whatever was selected.
+  void _open(int index) {
+    changes.click(index);
+    widget.onOpen();
+  }
+
+  void _tap(int index) {
+    final keyboard = HardwareKeyboard.instance;
+    changes.click(index, ctrl: keyboard.isControlPressed, shift: keyboard.isShiftPressed);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final changes = widget.changes;
     final header = _Header(
       filter: FilterField(
         controller: widget.filterController,
@@ -83,86 +107,50 @@ class _FileListState extends State<FileList> {
       ),
       onReload: widget.onReload,
     );
-    if (changes.rows.isEmpty) {
-      return Column(
-        children: [
-          header,
-          const Expanded(
-            child: Center(child: Text('Nothing to commit, working tree clean.')),
-          ),
-        ],
-      );
-    }
-    if (changes.visible.isEmpty) {
-      return Column(
-        children: [
-          header,
-          Expanded(child: Center(child: Text('No path matches "${changes.filter}".'))),
-        ],
-      );
-    }
-    // A flat list of headers and rows, built lazily: several hundred paths must
-    // not rebuild every tile for one cursor move.
-    final items = <Object>[];
-    var flat = 0;
-    for (final section in Section.values) {
-      final rows = changes.section(section);
-      if (rows.isEmpty) continue;
-      items.add(SectionHeader(section: section, count: rows.length));
-      for (final row in rows) {
-        items.add(RowEntry(row: row, index: flat++));
-      }
-    }
     return Column(
       children: [
         header,
-        Expanded(
-          child: Listener(
-            onPointerSignal: _wheel,
-            child: ListView.builder(
-              controller: scroll,
-              itemCount: items.length,
-              itemBuilder: (context, at) => _item(context, items[at], changes),
-            ),
-          ),
-        ),
+        Expanded(child: _body()),
       ],
     );
   }
 
-  Widget _item(BuildContext context, Object item, Changes changes) {
+  Widget _body() {
+    if (changes.rows.isEmpty) {
+      return const Center(child: Text('Nothing to commit, working tree clean.'));
+    }
+    if (changes.visible.isEmpty) {
+      return Center(child: Text('No path matches "${changes.filter}".'));
+    }
+    // A flat list of headers and rows, built lazily: several hundred paths must
+    // not rebuild every tile for one cursor move.
+    final items = flatItems(changes);
+    return Listener(
+      onPointerSignal: _wheel,
+      child: ListView.builder(
+        controller: scroll,
+        itemCount: items.length,
+        itemBuilder: (context, at) => _item(items[at]),
+      ),
+    );
+  }
+
+  Widget _item(Object item) {
     if (item is SectionHeader) return item;
-    final entry = item as RowEntry;
-    final index = entry.index;
-    final row = entry.row;
-    keys[index] ??= GlobalKey();
-    return RowTile(
-      key: keys[index],
+    final index = (item as RowEntry).index;
+    final row = item.row;
+    return FileRow(
+      key: keys[index] ??= GlobalKey(),
       row: row,
       focused: index == changes.index,
       chosen: changes.isSelected(row),
       nested: changes.isNested(row),
-      onTap: (ctrl, shift) => changes.click(index, ctrl: ctrl, shift: shift),
-      onTrack: () {
-        if (!changes.isSelected(row)) changes.click(index);
-        widget.onTrack();
-      },
-      onUntrack: () {
-        if (!changes.isSelected(row)) changes.click(index);
-        widget.onUntrack();
-      },
-      onIgnore: () {
-        if (!changes.isSelected(row)) changes.click(index);
-        widget.onIgnore();
-      },
-      onQuickIgnore: () {
-        if (!changes.isSelected(row)) changes.click(index);
-        widget.onQuickIgnore();
-      },
-      onOpen: () {
-        changes.click(index);
-        widget.onOpen();
-      },
+      onTap: () => _tap(index),
+      onTrack: () => _track(index),
+      onUntrack: () => _untrack(index),
+      onIgnore: () => _ignore(index),
+      onQuickIgnore: () => _quickIgnore(index),
+      onOpen: () => _open(index),
     );
   }
 
@@ -174,19 +162,33 @@ class _FileListState extends State<FileList> {
     if (!HardwareKeyboard.instance.isShiftPressed) return;
     final dy = event.scrollDelta.dy != 0 ? event.scrollDelta.dy : event.scrollDelta.dx;
     if (dy == 0) return;
-    GestureBinding.instance.pointerSignalResolver.register(event, (_) {
-      widget.changes.move(dy > 0 ? 5 : -5);
-    });
+    GestureBinding.instance.pointerSignalResolver.register(event, (_) => changes.move(dy > 0 ? 5 : -5));
   }
 }
 
-/// One file row: status letter, folder, name, and the actions at the end.
+/// The list as the builder walks it: a [SectionHeader] before each non-empty
+/// section, then a [RowEntry] per row with its index in `changes.visible`.
+List<Object> flatItems(Changes changes) {
+  final items = <Object>[];
+  var flat = 0;
+  for (final section in Section.values) {
+    final rows = changes.section(section);
+    if (rows.isEmpty) continue;
+    items.add(SectionHeader(section: section, count: rows.length));
+    for (final row in rows) {
+      items.add(RowEntry(row: row, index: flat++));
+    }
+  }
+  return items;
+}
+
+/// One file row: status letter, folder, the actions, then the name.
 ///
 /// `chosen` is the selection (Ctrl/Shift clicks build it); `focused` is the
 /// cursor. They draw differently so a multi-selection still shows where the
 /// cursor is.
-class RowTile extends StatelessWidget {
-  const RowTile({
+class FileRow extends StatelessWidget {
+  const FileRow({
     super.key,
     required this.row,
     required this.focused,
@@ -204,7 +206,7 @@ class RowTile extends StatelessWidget {
   final bool focused;
   final bool chosen;
   final bool nested;
-  final void Function(bool ctrl, bool shift) onTap;
+  final VoidCallback onTap;
   final VoidCallback onTrack;
   final VoidCallback onUntrack;
   final VoidCallback onIgnore;
@@ -214,58 +216,33 @@ class RowTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final style = Theme.of(context).textTheme.bodyMedium;
-    final keyboard = HardwareKeyboard.instance;
-    return Tooltip(
-      message: _tooltip,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: InkWell(
-          onTap: () => onTap(keyboard.isControlPressed, keyboard.isShiftPressed),
-          onSecondaryTap: onIgnore,
-          onDoubleTap: onOpen,
-          child: Container(
-            decoration: BoxDecoration(
-              color: chosen
-                  ? scheme.primaryContainer.withValues(alpha: 0.55)
-                  : focused
-                      ? scheme.secondaryContainer.withValues(alpha: 0.35)
-                      : null,
-              border: Border(
-                left: BorderSide(
-                  width: 3,
-                  color: focused ? scheme.primary : Colors.transparent,
-                ),
-              ),
-            ),
-            padding: const EdgeInsets.fromLTRB(9, 2, 8, 2),
-            child: Row(
-              children: [
-                _Badge(text: _badge, color: chosen ? scheme.primary : scheme.onSurfaceVariant),
-                const SizedBox(width: 7),
-                Expanded(child: _name(style, scheme, chosen)),
-              ],
-            ),
-          ),
+    return HoverRow(
+      tooltip: _tooltip,
+      onTap: onTap,
+      onSecondaryTap: onIgnore,
+      onDoubleTap: onOpen,
+      padding: const EdgeInsets.fromLTRB(9, 2, 8, 2),
+      decoration: BoxDecoration(
+        color: chosen
+            ? scheme.primaryContainer.withValues(alpha: 0.55)
+            : focused
+                ? scheme.secondaryContainer.withValues(alpha: 0.35)
+                : null,
+        border: Border(
+          left: BorderSide(width: 3, color: focused ? scheme.primary : Colors.transparent),
         ),
       ),
+      child: _cells(scheme),
     );
   }
 
-  /// Folder first, then the name, each in a fixed share of the row, so the file
-  /// names line up under each other whatever the folder depths are.
-  Widget _name(TextStyle? style, ColorScheme scheme, bool chosen) => Row(
+  /// Folder first, then the actions, then the name, each in a fixed share of
+  /// the row, so the names line up whatever the folder depths are.
+  Widget _cells(ColorScheme scheme) => Row(
         children: [
-          Expanded(
-            flex: 2,
-            child: Text(
-              row.folder.isEmpty ? '' : '${row.folder}/',
-              textAlign: TextAlign.right,
-              overflow: TextOverflow.ellipsis,
-              maxLines: 1,
-              style: style?.copyWith(color: scheme.onSurfaceVariant, fontFamily: 'monospace', fontSize: 11.5),
-            ),
-          ),
+          _Badge(text: _badge, color: chosen ? scheme.primary : scheme.onSurfaceVariant),
+          const SizedBox(width: 7),
+          Expanded(flex: 2, child: _FolderCell(folder: row.folder)),
           const SizedBox(width: 6),
           _RowActions(
             staged: row.isStaged,
@@ -275,38 +252,9 @@ class RowTile extends StatelessWidget {
             onIgnore: onQuickIgnore,
           ),
           const SizedBox(width: 8),
-          Expanded(
-            flex: 3,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Flexible(
-                  child: Text(
-                    row.name,
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                    style: _nameStyle(style, chosen),
-                  ),
-                ),
-                // The marker belongs to the base name, not to a column of its own.
-                if (nested) ...[
-                  const SizedBox(width: 5),
-                  const _RepoBadge(),
-                ],
-              ],
-            ),
-          ),
+          Expanded(flex: 3, child: _NameCell(row: row, chosen: chosen, nested: nested)),
         ],
       );
-
-  /// A directory takes Windows Explorer's folder colour, so a folder reads as a
-  /// folder at a glance; a chosen row is bold on top of that.
-  TextStyle? _nameStyle(TextStyle? style, bool chosen) {
-    var out = style;
-    if (row.path.endsWith('/')) out = out?.copyWith(color: purrageFolder);
-    if (chosen) out = out?.copyWith(fontWeight: FontWeight.w600);
-    return out;
-  }
 
   String get _badge => switch (row.kind) {
         RowKind.added => 'A',
@@ -340,6 +288,66 @@ class _Badge extends StatelessWidget {
       );
 }
 
+class _FolderCell extends StatelessWidget {
+  const _FolderCell({required this.folder});
+
+  final String folder;
+
+  @override
+  Widget build(BuildContext context) => Text(
+        folder.isEmpty ? '' : '$folder/',
+        textAlign: TextAlign.right,
+        overflow: TextOverflow.ellipsis,
+        maxLines: 1,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontFamily: 'monospace',
+              fontSize: 11.5,
+            ),
+      );
+}
+
+/// The base name, and the `git` marker when its folder is a repository of its
+/// own: the marker belongs to the name, not to a column of its own.
+class _NameCell extends StatelessWidget {
+  const _NameCell({required this.row, required this.chosen, required this.nested});
+
+  final StatusRow row;
+  final bool chosen;
+  final bool nested;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: Text(
+              row.name,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+              style: _style(Theme.of(context).textTheme.bodyMedium),
+            ),
+          ),
+          if (nested) ...[
+            const SizedBox(width: 5),
+            const Pill(
+              'git',
+              tooltip: 'Nested git repository: its ignore rules live in its own .gitignore',
+            ),
+          ],
+        ],
+      );
+
+  /// A directory takes Windows Explorer's folder colour, so a folder reads as a
+  /// folder at a glance; a chosen row is bold on top of that.
+  TextStyle? _style(TextStyle? style) {
+    var out = style;
+    if (row.path.endsWith('/')) out = out?.copyWith(color: purrageFolder);
+    if (chosen) out = out?.copyWith(fontWeight: FontWeight.w600);
+    return out;
+  }
+}
+
 /// The two row actions, as text: `Add` (or `Untrack`) and `Ignore`, in a fixed
 /// slot between the folder and the name so the names still line up.
 class _RowActions extends StatelessWidget {
@@ -363,61 +371,20 @@ class _RowActions extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (!conflict)
-          _TextAction(
+          LinkButton(
             label: staged ? 'Untrack' : 'Add',
-            tooltip: staged ? 'Stop tracking this file' : 'Track this file (git add)',
+            tooltip: staged ? 'Stop tracking this file (u)' : 'Track this file, git add (a)',
             onTap: staged ? onUntrack : onTrack,
             width: 52,
           ),
         const SizedBox(width: 4),
-        _TextAction(
+        LinkButton(
           label: 'Ignore',
-          tooltip: 'Add the literal path to the root .gitignore',
+          tooltip: 'Add the literal path to the root .gitignore (i)',
           onTap: onIgnore,
           width: 48,
         ),
       ],
-    );
-  }
-}
-
-class _TextAction extends StatelessWidget {
-  const _TextAction({
-    required this.label,
-    required this.tooltip,
-    required this.onTap,
-    required this.width,
-  });
-
-  final String label;
-  final String tooltip;
-  final VoidCallback onTap;
-  final double width;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Tooltip(
-      message: tooltip,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: SizedBox(
-          width: width,
-          height: 20,
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(4),
-            child: Center(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 10.5, color: scheme.onSurfaceVariant),
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
@@ -431,62 +398,21 @@ class _Header extends StatelessWidget {
   final VoidCallback onReload;
 
   @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Row(
-      children: [
-        Expanded(child: filter),
-        Padding(
-          padding: const EdgeInsets.only(right: 8),
-          child: Tooltip(
-            message: 'Re-read the state (F5)',
-            child: MouseRegion(
-              cursor: SystemMouseCursors.click,
-              child: IconButton(
-                icon: const Icon(Icons.refresh, size: 16),
-                color: scheme.onSurfaceVariant,
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints.tightFor(width: 28, height: 28),
-                onPressed: onReload,
-              ),
-            ),
+  Widget build(BuildContext context) => Row(
+        children: [
+          Expanded(child: filter),
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: IconAction(icon: Icons.refresh, tooltip: 'Re-read the state (F5)', onPressed: onReload),
           ),
-        ),
-      ],
-    );
-  }
+        ],
+      );
 }
 
 /// One row in the flat list the builder walks.
-class RowEntry {  const RowEntry({required this.row, required this.index});
+class RowEntry {
+  const RowEntry({required this.row, required this.index});
 
   final StatusRow row;
   final int index;
-}
-
-/// The tiny marker on a row whose folder holds a repository of its own: an
-/// embedded repo, a gitlink or a submodule. Its ignore rules live in there, not
-/// in this repository's `.gitignore`.
-class _RepoBadge extends StatelessWidget {
-  const _RepoBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Tooltip(
-      message: 'Nested git repository: its ignore rules live in its own .gitignore',
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-        decoration: BoxDecoration(
-          border: Border.all(color: scheme.outline),
-          borderRadius: BorderRadius.circular(3),
-        ),
-        child: Text(
-          'git',
-          style: TextStyle(fontSize: 9.5, color: scheme.onSurfaceVariant),
-        ),
-      ),
-    );
-  }
 }

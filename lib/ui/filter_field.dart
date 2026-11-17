@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'widgets.dart';
+
 /// The filter field at the top of the file list, the way Ops does it: `/` puts
 /// the keyboard here, Esc clears then leaves, Enter, Tab and Down go back to the
 /// list.
@@ -69,24 +71,17 @@ class _ClearButton extends StatelessWidget {
   final TextEditingController controller;
   final ValueChanged<String> onCleared;
 
+  /// Empty the field and report the empty text, as typing would.
+  void _clear() {
+    controller.clear();
+    onCleared('');
+  }
+
   @override
   Widget build(BuildContext context) => ValueListenableBuilder<TextEditingValue>(
         valueListenable: controller,
         builder: (context, value, _) => value.text.isEmpty
             ? const SizedBox.shrink()
-            : Tooltip(
-                message: 'Clear the filter',
-                child: MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: IconButton(
-                    icon: const Icon(Icons.close, size: 15),
-                    visualDensity: VisualDensity.compact,
-                    onPressed: () {
-                      controller.clear();
-                      onCleared('');
-                    },
-                  ),
-                ),
-              ),
+            : IconAction(icon: Icons.close, size: 15, tooltip: 'Clear the filter', onPressed: _clear),
       );
 }

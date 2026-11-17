@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../state/workspace.dart';
+import 'app_keys.dart';
 import 'browse_view.dart';
 import 'changes_view.dart';
 import 'console_view.dart';
@@ -9,7 +9,6 @@ import 'debug_bar.dart';
 import 'help_view.dart';
 import 'ignore_dialog.dart';
 import 'mode_rail.dart';
-import 'nav_keys.dart';
 import 'notice_bar.dart';
 import 'settings_view.dart';
 
@@ -18,7 +17,9 @@ export 'mode_rail.dart' show Mode;
 /// The window shell: the mode rail, the shown mode, and every app-wide key.
 ///
 /// The work is in [Workspace]; this class holds focus, text controllers, keys
-/// and layout, and owns the workspace it is given (it disposes it).
+/// and layout, and owns the workspace it is given (it disposes it). Keys are
+/// `Shortcuts` built from `app_keys.dart` and `Actions` that call the
+/// workspace.
 class Shell extends StatefulWidget {
   const Shell({super.key, required this.workspace});
 
@@ -41,6 +42,19 @@ class ShellState extends State<Shell> {
   /// The first load, for tests that wait on it.
   late final Future<void> started;
 
+  /// Plain-letter keys must reach a text field that has focus.
+  bool get typing => commitFocus.hasFocus || filterFocus.hasFocus;
+
+  late final ShortcutManager _changesKeys = GatedShortcutManager(
+    shortcuts: shortcutsOf(changesBindings),
+    active: () => mode == Mode.changes && !typing,
+  );
+
+  late final ShortcutManager _plainKeys = GatedShortcutManager(
+    shortcuts: shortcutsOf(plainBindings),
+    active: () => !typing,
+  );
+
   @override
   void initState() {
     super.initState();
@@ -58,6 +72,8 @@ class ShellState extends State<Shell> {
   void dispose() {
     workspace.removeListener(_redraw);
     workspace.dispose();
+    _changesKeys.dispose();
+    _plainKeys.dispose();
     commitController.dispose();
     commitFocus.dispose();
     filterController.dispose();
@@ -79,77 +95,26 @@ class ShellState extends State<Shell> {
     show(Mode.values[(mode.index + delta + count) % count]);
   }
 
-  KeyEventResult onKey(FocusNode node, KeyEvent event) {
-    if (event is KeyUpEvent) return KeyEventResult.ignored;
-    if (HardwareKeyboard.instance.isAltPressed && _altKey(event.logicalKey)) {
-      return KeyEventResult.handled;
-    }
-    if (event.character == '?' && isPlain(event)) {
-      show(Mode.help);
-      return KeyEventResult.handled;
-    }
-    if (mode != Mode.changes || commitFocus.hasFocus || filterFocus.hasFocus) {
-      return KeyEventResult.ignored;
-    }
-    return _changesKey(event);
-  }
+  void move(MoveIntent intent) => intent.extend
+      ? workspace.changes.extendSelection(intent.delta)
+      : workspace.changes.move(intent.delta);
 
-  bool _altKey(LogicalKeyboardKey key) {
-    if (key == LogicalKeyboardKey.bracketRight) {
-      cycle(1);
-    } else if (key == LogicalKeyboardKey.bracketLeft) {
-      cycle(-1);
-    } else {
-      final picked = Mode.values.where((mode) => mode.digit == key);
-      if (picked.isEmpty) return false;
-      show(picked.first);
-    }
-    return true;
-  }
-
-  KeyEventResult _changesKey(KeyEvent event) {
-    final keyboard = HardwareKeyboard.instance;
-    final changes = workspace.changes;
-    // F5 and Ctrl+R: ask git again and redraw the list, the desktop habit.
-    if (event.logicalKey == LogicalKeyboardKey.f5 ||
-        (keyboard.isControlPressed && event.character?.toLowerCase() == 'r')) {
-      workspace.reloadAll();
-      return KeyEventResult.handled;
-    }
-    if (event.logicalKey == LogicalKeyboardKey.enter && keyboard.isControlPressed) {
-      changes.toggleFocused();
-      return KeyEventResult.handled;
-    }
-    final delta = navDelta(event);
-    if (delta != null) {
-      keyboard.isShiftPressed ? changes.extendSelection(delta) : changes.move(delta);
-      return KeyEventResult.handled;
-    }
-    // Ctrl+F is the desktop habit for the same field.
-    if (keyboard.isControlPressed && event.character?.toLowerCase() == 'f') {
-      filterFocus.requestFocus();
-      return KeyEventResult.handled;
-    }
-    if (!isPlain(event)) return KeyEventResult.ignored;
-    final action = _plainKeys[event.character] ?? _plainKeys[event.character?.toLowerCase()];
-    if (action == null) return KeyEventResult.ignored;
-    action();
-    return KeyEventResult.handled;
-  }
-
-  /// The plain keys of the Changes list; an exact match (`I`, `E`) wins over
-  /// its lower-case key.
-  late final Map<String, VoidCallback> _plainKeys = {
-    '/': filterFocus.requestFocus,
-    'I': ignoreWithDialog,
-    'E': workspace.openSelectedIgnore,
-    'i': workspace.ignoreQuick,
-    ' ': workspace.track,
-    'a': workspace.track,
-    'u': workspace.untrack,
-    'e': workspace.openFocused,
-    'r': workspace.reloadAll,
-    'c': commitFocus.requestFocus,
+  /// What each intent does. Every action is one call; the work is in the
+  /// workspace.
+  late final Map<Type, Action<Intent>> _actions = {
+    ShowModeIntent: CallbackAction<ShowModeIntent>(onInvoke: (intent) => show(intent.mode)),
+    CycleModeIntent: CallbackAction<CycleModeIntent>(onInvoke: (intent) => cycle(intent.delta)),
+    MoveIntent: CallbackAction<MoveIntent>(onInvoke: move),
+    ToggleRowIntent: CallbackAction<ToggleRowIntent>(onInvoke: (_) => workspace.changes.toggleFocused()),
+    TrackIntent: CallbackAction<TrackIntent>(onInvoke: (_) => workspace.track()),
+    UntrackIntent: CallbackAction<UntrackIntent>(onInvoke: (_) => workspace.untrack()),
+    IgnoreIntent: CallbackAction<IgnoreIntent>(onInvoke: (_) => workspace.ignoreQuick()),
+    IgnoreDialogIntent: CallbackAction<IgnoreDialogIntent>(onInvoke: (_) => ignoreWithDialog()),
+    OpenFileIntent: CallbackAction<OpenFileIntent>(onInvoke: (_) => workspace.openFocused()),
+    OpenIgnoreFileIntent: CallbackAction<OpenIgnoreFileIntent>(onInvoke: (_) => workspace.openSelectedIgnore()),
+    ReloadIntent: CallbackAction<ReloadIntent>(onInvoke: (_) => workspace.reloadAll()),
+    FocusFilterIntent: CallbackAction<FocusFilterIntent>(onInvoke: (_) => filterFocus.requestFocus()),
+    FocusCommitIntent: CallbackAction<FocusCommitIntent>(onInvoke: (_) => commitFocus.requestFocus()),
   };
 
   /// Shift+I: ask how wide the rule is and where it goes, then write it. The
@@ -179,11 +144,22 @@ class ShellState extends State<Shell> {
 
   @override
   Widget build(BuildContext context) {
-    return Focus(
-      focusNode: shellFocus,
-      autofocus: true,
-      onKeyEvent: onKey,
-      child: Scaffold(
+    return Shortcuts(
+      shortcuts: shortcutsOf(appBindings),
+      child: Shortcuts.manager(
+        manager: _plainKeys,
+        child: Shortcuts.manager(
+          manager: _changesKeys,
+          child: Actions(
+            actions: _actions,
+            child: Focus(focusNode: shellFocus, autofocus: true, child: _window()),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _window() => Scaffold(
         body: Stack(
           children: [
             DebugBar(roles: appFocusRoles, child: _layout()),
@@ -195,9 +171,7 @@ class ShellState extends State<Shell> {
             ),
           ],
         ),
-      ),
-    );
-  }
+      );
 
   Widget _layout() => Row(
         children: [
@@ -225,7 +199,12 @@ class ShellState extends State<Shell> {
           onNewIgnore: workspace.newIgnoreHere,
           onCommit: commitNow,
         ),
-        BrowseView(browser: workspace.browser, current: workspace.repo.path, onOpen: workspace.open),
+        BrowseView(
+          browser: workspace.browser,
+          current: workspace.repo.path,
+          onOpen: workspace.open,
+          drives: workspace.browser.listDrives,
+        ),
         SettingsView(
           detect: workspace.editors.detect,
           chosenCommand: workspace.editorCommand ?? '',

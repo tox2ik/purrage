@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'widgets.dart';
+
 /// The modes the app shows; the rail lists them in this order.
 enum Mode { changes, browse, settings, console, help }
 
@@ -31,7 +33,8 @@ extension ModeLook on Mode {
       ][index];
 }
 
-/// The mode rail: one stop in the Tab order, not one per mode.
+/// The mode rail, in the role of Flutter's `NavigationRail` (kept custom for
+/// its 44 px density): one stop in the Tab order, not one per mode.
 class ModeRail extends StatelessWidget {
   const ModeRail({super.key, required this.current, required this.onPick});
 
@@ -43,40 +46,13 @@ class ModeRail extends StatelessWidget {
     return Column(
       children: [
         for (final mode in Mode.values)
-          _RailButton(mode: mode, active: mode == current, onTap: () => onPick(mode)),
-      ],
-    );
-  }
-}
-
-class _RailButton extends StatelessWidget {
-  const _RailButton({required this.mode, required this.active, required this.onTap});
-
-  final Mode mode;
-  final bool active;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Tooltip(
-      message: mode.label,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: InkWell(
-          onTap: onTap,
-          child: Container(
-            width: 44,
-            height: 44,
-            color: active ? scheme.secondaryContainer : null,
-            child: Icon(
-              mode.icon,
-              size: 17,
-              color: active ? scheme.primary : scheme.onSurfaceVariant,
-            ),
+          IconToggle(
+            icon: mode.icon,
+            tooltip: '${mode.label} (Alt+${mode.index + 1})',
+            active: mode == current,
+            onTap: () => onPick(mode),
           ),
-        ),
-      ),
+      ],
     );
   }
 }

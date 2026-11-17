@@ -225,6 +225,10 @@ class RepoBrowser extends ChangeNotifier {
 
   /// The mounted drives with a root directory, on Windows. Linux would have to
   /// read `/proc/self/mountinfo` and drop the pseudo filesystems; not yet.
+  /// [drives] through this browser's own lister.
+  Future<List<String>> listDrives() =>
+      drives(lister: lister, env: Env(const {}, isWindows: isWindows));
+
   static Future<List<String>> drives({
     DirectoryLister lister = const SystemDirectoryLister(),
     Env? env,

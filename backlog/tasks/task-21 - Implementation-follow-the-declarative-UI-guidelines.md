@@ -1,7 +1,7 @@
 ---
 id: task-21
 title: 'Implementation: follow the declarative UI guidelines'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-17'
 labels:
@@ -65,9 +65,32 @@ already are. Check the Settings editor rows and the Browse drive picker. Section
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 every `build` in `lib/ui/` is under 50 lines (a test or tool script measures it, as in the review)
-- [ ] #2 no event handler closure in `lib/ui/` has more than one statement
-- [ ] #3 `lib/ui/widgets.dart` holds the atoms; no `MouseRegion(cursor: SystemMouseCursors.click` is left outside it
-- [ ] #4 app keys go through `Shortcuts`/`Actions`/`Intent`; the help table reads the same map
-- [ ] #5 widget tests for each atom: cursor, tooltip, the label triggers the action
+- [x] #1 every `build` in `lib/ui/` is under 50 lines (a test or tool script measures it, as in the review)
+- [x] #2 no event handler closure in `lib/ui/` has more than one statement
+- [x] #3 `lib/ui/widgets.dart` holds the atoms; no `MouseRegion(cursor: SystemMouseCursors.click` is left outside it
+- [x] #4 app keys go through `Shortcuts`/`Actions`/`Intent`; the help table reads the same map
+- [x] #5 widget tests for each atom: cursor, tooltip, the label triggers the action
 <!-- AC:END -->
+
+## Notes
+
+- Atoms in `lib/ui/widgets.dart`: `Clickable` (cursor + tooltip, the only place
+  `SystemMouseCursors.click` is set), `HoverRow`, `IconAction`, `SmallButton`, `LinkButton`,
+  `IconToggle`, `Pill`, `PaneHeader`. Every view uses them; `RowTile` became `FileRow` with
+  named cells, `_RepoRow` became `RepoRow` with cells, `NoticeBar` has a `_NoticeCard`.
+- `Changes.target(index)` is the "this row unless it is in the selection" rule; the row
+  buttons call named methods in `_FileListState`.
+- Keys: `lib/ui/app_keys.dart` holds the intents and three binding lists (`appBindings` always,
+  `changesBindings` in Changes without a focused text field, `plainBindings` like `?` in any mode
+  without a focused text field). `GatedShortcutManager` lets letters reach text fields.
+  `keyTable` is generated from the bindings (`helpLines(allBindings)`); `ShellState.onKey` is gone.
+  `Ctrl+R`/`Ctrl+F` now match `logicalKey` (`SingleActivator`).
+- The Help line "Tab / Shift+Tab" was dropped because nothing implements it yet; task-9 adds the
+  key and the line. Help also lost the stale "Alt+1/2/3 = Changes, Settings, Help" (now generated
+  from `Mode`), which overlaps task-10 in stack C: resolve at the join.
+- `BrowseView(drives:)` takes the probe; the shell passes `browser.listDrives`, so widget tests
+  no longer stat real drives.
+- `test/ui_rules_test.dart` measures build length, handler statements and the cursor rule;
+  `test/widgets_test.dart` the atoms; `test/app_keys_test.dart` the key map and the shell.
+- Section headers do not select their section on click (optional in the description); the
+  ignore dialog was left to task-12 (stack C).

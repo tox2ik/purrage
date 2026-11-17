@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
-/// One line of the help table. The table is the single source for the Help
-/// mode; every key also appears in PLAN.md.
+import 'app_keys.dart';
+
+/// One line of the help table. Every key also appears in PLAN.md.
 class KeyHelp {
   const KeyHelp(this.keys, this.what);
 
@@ -9,24 +10,11 @@ class KeyHelp {
   final String what;
 }
 
-const List<KeyHelp> keyTable = [
-  KeyHelp('Alt+1 / Alt+2 / Alt+3', 'Changes, Settings, Help'),
-  KeyHelp('Alt+] / Alt+[', 'next / previous mode'),
-  KeyHelp('j k Up Down (W S)', 'move the cursor'),
-  KeyHelp('Shift+Up / Shift+Down', 'extend the highlight from the anchor'),
-  KeyHelp('Ctrl+Enter', 'highlight or un-highlight the cursor row'),
-  KeyHelp('space / a', 'track (git add) the highlighted files'),
-  KeyHelp('u', 'stop tracking, keep on disk'),
-  KeyHelp('i', 'ignore: pick scope and which ignore file'),
-  KeyHelp('c', 'jump to the commit message'),
-  KeyHelp('/ or Ctrl+F', 'filter the list (Esc clears, Enter leaves)'),
-  KeyHelp('e / E', 'open the file / the selected .gitignore in the editor'),
-  KeyHelp('Ctrl+click / Shift+click', 'select one more / select a range'),
-  KeyHelp('F5 / Ctrl+R', 're-read the state and update the list'),
-  KeyHelp('r', 'refresh from git'),
-  KeyHelp('Tab / Shift+Tab', 'next / previous pane'),
-  KeyHelp('?', 'this list'),
-  KeyHelp('Esc', 'leave the field or the menu'),
+/// The help table, read from the same bindings the `Shortcuts` are built from
+/// (`app_keys.dart`), so a key and its line cannot drift apart.
+final List<KeyHelp> keyTable = [
+  for (final binding in helpLines(allBindings))
+    KeyHelp(binding.keys, binding.what),
 ];
 
 /// The Help mode: the key table, nothing else.

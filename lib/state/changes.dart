@@ -309,6 +309,13 @@ class Changes extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// A row's own action button was clicked: act on that row, unless it is part
+  /// of the selection, in which case the whole selection is the target.
+  void target(int index) {
+    if (index < 0 || index >= _visible.length) return;
+    if (!isSelected(_visible[index])) click(index);
+  }
+
   /// Select every visible row.
   Future<void> selectAll() async {
     _selection

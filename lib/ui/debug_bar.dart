@@ -10,6 +10,8 @@ import 'package:flutter/gestures.dart'
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'widgets.dart';
+
 /// What each labelled focus node is, in the interface's own words.
 ///
 /// A node's [FocusNode.debugLabel] is set where the node is made; this registry
@@ -318,22 +320,16 @@ class _BugButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: Tooltip(
-        message: 'Debug: focus, last key and mouse event',
-        child: Material(
-          color: scheme.surfaceContainerHigh,
-          elevation: 6,
-          shape: CircleBorder(side: BorderSide(color: scheme.outlineVariant)),
-          child: IconButton(
-            key: DebugBar.buttonKey,
-            onPressed: onPressed,
-            icon: Icon(
-              Icons.bug_report_outlined,
-              color: scheme.onSurfaceVariant,
-            ),
-          ),
+    return Clickable(
+      tooltip: 'Debug: focus, last key and mouse event',
+      child: Material(
+        color: scheme.surfaceContainerHigh,
+        elevation: 6,
+        shape: CircleBorder(side: BorderSide(color: scheme.outlineVariant)),
+        child: IconButton(
+          key: DebugBar.buttonKey,
+          onPressed: onPressed,
+          icon: Icon(Icons.bug_report_outlined, color: scheme.onSurfaceVariant),
         ),
       ),
     );
@@ -347,18 +343,10 @@ class _ReleasesToggle extends StatelessWidget {
   final VoidCallback onPressed;
 
   @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return TextButton(
-      key: DebugBar.releasesKey,
-      onPressed: onPressed,
-      style: TextButton.styleFrom(
-        foregroundColor: scheme.onSurfaceVariant,
-        padding: EdgeInsets.zero,
-        minimumSize: const Size(0, 32),
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      ),
-      child: const Text('show key releases'),
-    );
-  }
+  Widget build(BuildContext context) => SmallButton(
+        key: DebugBar.releasesKey,
+        label: 'show key releases',
+        tooltip: 'Also show the last key that was released',
+        onPressed: onPressed,
+      );
 }

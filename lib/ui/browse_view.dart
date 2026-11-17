@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../state/browser.dart';
 import 'theme.dart';
+import 'widgets.dart';
 
 /// The Browse mode: the directory being browsed, the repositories found below it,
 /// a way up a level and, on Windows, a drive picker.
@@ -11,6 +12,7 @@ class BrowseView extends StatefulWidget {
     required this.browser,
     required this.current,
     required this.onOpen,
+    this.drives = RepoBrowser.drives,
   });
 
   final RepoBrowser browser;
@@ -19,6 +21,9 @@ class BrowseView extends StatefulWidget {
   final String current;
 
   final ValueChanged<String> onOpen;
+
+  /// The drive probe; tests pass one that touches no disk.
+  final Future<List<String>> Function() drives;
 
   @override
   State<BrowseView> createState() => _BrowseViewState();
@@ -30,70 +35,55 @@ class _BrowseViewState extends State<BrowseView> {
   @override
   void initState() {
     super.initState();
-    RepoBrowser.drives().then((found) {
-      if (mounted) setState(() => drives = found);
-    });
+    _probeDrives();
+  }
+
+  Future<void> _probeDrives() async {
+    final found = await widget.drives();
+    if (mounted) setState(() => drives = found);
   }
 
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: widget.browser,
-      builder: (context, _) {
-        final browser = widget.browser;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _Header(
-              browser: browser,
-              drives: drives,
-              onUp: browser.up,
-              onScan: browser.rescan,
-              onDrive: (root) => browser.goTo(root),
-            ),
-            const Divider(height: 1),
-            Expanded(child: _List(browser: browser, current: widget.current, onOpen: widget.onOpen)),
-          ],
-        );
-      },
+      builder: (context, _) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _Header(browser: widget.browser, drives: drives),
+          const Divider(height: 1),
+          Expanded(
+            child: _List(browser: widget.browser, current: widget.current, onOpen: widget.onOpen),
+          ),
+        ],
+      ),
     );
   }
 }
 
 class _Header extends StatelessWidget {
-  const _Header({
-    required this.browser,
-    required this.drives,
-    required this.onUp,
-    required this.onScan,
-    required this.onDrive,
-  });
+  const _Header({required this.browser, required this.drives});
 
   final RepoBrowser browser;
   final List<String> drives;
-  final VoidCallback onUp;
-  final VoidCallback onScan;
-  final ValueChanged<String> onDrive;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final mono = TextStyle(fontFamily: 'monospace', fontSize: 11.5, color: scheme.onSurfaceVariant);
+    final mono = TextStyle(
+      fontFamily: 'monospace',
+      fontSize: 11.5,
+      color: Theme.of(context).colorScheme.onSurfaceVariant,
+    );
     return Padding(
       padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
       child: Row(
         children: [
-          _Button(icon: Icons.arrow_upward, tooltip: 'Up one level', onTap: onUp),
+          IconAction(icon: Icons.arrow_upward, tooltip: 'Up one level', onPressed: browser.up),
           const SizedBox(width: 4),
-          _Button(icon: Icons.refresh, tooltip: 'Scan this directory again', onTap: onScan),
+          IconAction(icon: Icons.refresh, tooltip: 'Scan this directory again', onPressed: browser.rescan),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(
-              browser.directory,
-              overflow: TextOverflow.ellipsis,
-              maxLines: 1,
-              style: mono,
-            ),
+            child: Text(browser.directory, overflow: TextOverflow.ellipsis, maxLines: 1, style: mono),
           ),
           if (browser.scanning) ...[
             const SizedBox(width: 10),
@@ -101,7 +91,7 @@ class _Header extends StatelessWidget {
           ],
           if (drives.isNotEmpty) ...[
             const SizedBox(width: 10),
-            _DrivePicker(drives: drives, onPicked: onDrive),
+            _DrivePicker(drives: drives, onPicked: browser.goTo),
           ],
           const SizedBox(width: 8),
           Text('${browser.repos.length} repo(s)', style: mono),
@@ -111,17 +101,23 @@ class _Header extends StatelessWidget {
   }
 }
 
+/// The drive picker, in the role of a `DropdownButton`: its label "Drive" is
+/// the button, so clicking the word opens the menu.
 class _DrivePicker extends StatelessWidget {
   const _DrivePicker({required this.drives, required this.onPicked});
 
   final List<String> drives;
   final ValueChanged<String> onPicked;
 
+  void _picked(String? root) {
+    if (root != null) onPicked(root);
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Tooltip(
-      message: 'Switch drive',
+    return Clickable(
+      tooltip: 'Switch drive',
       child: DropdownButton<String>(
         value: null,
         hint: Text('Drive', style: TextStyle(fontSize: 11.5, color: scheme.onSurfaceVariant)),
@@ -135,36 +131,10 @@ class _DrivePicker extends StatelessWidget {
               child: Text(root.substring(0, 2), style: TextStyle(fontSize: 11.5, color: scheme.onSurface)),
             ),
         ],
-        onChanged: (root) {
-          if (root != null) onPicked(root);
-        },
+        onChanged: _picked,
       ),
     );
   }
-}
-
-class _Button extends StatelessWidget {
-  const _Button({required this.icon, required this.tooltip, required this.onTap});
-
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => Tooltip(
-        message: tooltip,
-        child: MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: IconButton(
-            icon: Icon(icon, size: 16),
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-            visualDensity: VisualDensity.compact,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints.tightFor(width: 28, height: 28),
-            onPressed: onTap,
-          ),
-        ),
-      );
 }
 
 class _List extends StatelessWidget {
@@ -189,7 +159,7 @@ class _List extends StatelessWidget {
       itemCount: browser.repos.length,
       itemBuilder: (context, index) {
         final repo = browser.repos[index];
-        return _RepoRow(
+        return RepoRow(
           path: repo,
           isCurrent: repo.toLowerCase() == open.toLowerCase(),
           onTap: () => onOpen(repo),
@@ -199,8 +169,10 @@ class _List extends StatelessWidget {
   }
 }
 
-class _RepoRow extends StatelessWidget {
-  const _RepoRow({required this.path, required this.isCurrent, required this.onTap});
+/// One repository in the Browse list: the same two columns as a file row, the
+/// folder right-aligned and the name left-aligned, so names line up.
+class RepoRow extends StatelessWidget {
+  const RepoRow({super.key, required this.path, required this.isCurrent, required this.onTap});
 
   final String path;
   final bool isCurrent;
@@ -211,72 +183,68 @@ class _RepoRow extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final clean = path.replaceAll(r'\', '/');
     final name = clean.split('/').last;
-    final parent = clean.length > name.length
-        ? clean.substring(0, clean.length - name.length - 1)
-        : '';
-    return Tooltip(
-      message: isCurrent ? 'Already open: $path' : 'Open $path',
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: InkWell(
-          onTap: onTap,
-          child: Container(
-            decoration: BoxDecoration(
-              color: isCurrent ? scheme.primaryContainer.withValues(alpha: 0.45) : null,
-              border: Border(
-                left: BorderSide(
-                  width: 3,
-                  color: isCurrent ? scheme.primary : Colors.transparent,
-                ),
-              ),
-            ),
-            padding: const EdgeInsets.fromLTRB(9, 2, 12, 2),
-            // The same two columns as a file row: the folder right-aligned, the
-            // base name left-aligned, so names line up down the list.
-            child: Row(
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: Text(
-                    parent.isEmpty ? '' : '$parent/',
-                    textAlign: TextAlign.right,
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      fontSize: 11.5,
-                      color: scheme.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  flex: 3,
-                  child: Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          name,
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
-                          style: TextStyle(fontSize: 12.5, color: purrageFolder),
-                        ),
-                      ),
-                      if (isCurrent) ...[
-                        const SizedBox(width: 6),
-                        Text(
-                          'open',
-                          style: TextStyle(fontSize: 10.5, color: scheme.primary),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
+    final parent = clean.length > name.length ? clean.substring(0, clean.length - name.length - 1) : '';
+    return HoverRow(
+      tooltip: isCurrent ? 'Already open: $path' : 'Open $path',
+      onTap: onTap,
+      padding: const EdgeInsets.fromLTRB(9, 2, 12, 2),
+      decoration: BoxDecoration(
+        color: isCurrent ? scheme.primaryContainer.withValues(alpha: 0.45) : null,
+        border: Border(
+          left: BorderSide(width: 3, color: isCurrent ? scheme.primary : Colors.transparent),
         ),
+      ),
+      child: Row(
+        children: [
+          Expanded(flex: 2, child: _FolderCell(parent: parent)),
+          const SizedBox(width: 6),
+          Expanded(flex: 3, child: _NameCell(name: name, isCurrent: isCurrent)),
+        ],
       ),
     );
   }
+}
+
+class _FolderCell extends StatelessWidget {
+  const _FolderCell({required this.parent});
+
+  final String parent;
+
+  @override
+  Widget build(BuildContext context) => Text(
+        parent.isEmpty ? '' : '$parent/',
+        textAlign: TextAlign.right,
+        overflow: TextOverflow.ellipsis,
+        maxLines: 1,
+        style: TextStyle(
+          fontFamily: 'monospace',
+          fontSize: 11.5,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      );
+}
+
+class _NameCell extends StatelessWidget {
+  const _NameCell({required this.name, required this.isCurrent});
+
+  final String name;
+  final bool isCurrent;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        children: [
+          Flexible(
+            child: Text(
+              name,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+              style: const TextStyle(fontSize: 12.5, color: purrageFolder),
+            ),
+          ),
+          if (isCurrent) ...[
+            const SizedBox(width: 6),
+            Text('open', style: TextStyle(fontSize: 10.5, color: Theme.of(context).colorScheme.primary)),
+          ],
+        ],
+      );
 }
