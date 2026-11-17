@@ -7,6 +7,20 @@ Repo layout: `lib/ui/` is presentation, `lib/state/` is the work (`ChangeNotifie
 without widgets). Project management lives here too: `backlog/` (Backlog.md tasks) and
 `openspec/` (changes that need a design).
 
+## Working rhythm (the user's rules, learned the hard way)
+
+- **Do not run the test suite or build unless asked.** Edit, then `flutter analyze` (a few
+  seconds) as the compile check, then commit. Build (`make build`, `flutter build windows --debug`)
+  and tests (`make test`) happen when the user says so, or when a change cannot be verified any
+  other way — say which and why.
+- **Change files with the `edit` and `write` tools, never with a shell string replacement.** A
+  PowerShell `.Replace` on `-Raw` content does not preserve line endings, expands `$name` in the
+  replacement, and turns a backticked `r` into a carriage return; each of those wrote broken Dart
+  here. The shell runs commands and reads state, nothing else.
+- One commit per feature, `area: what changed`, body says why, `Co-Authored-By: agent
+  <agent@it-agent.no>`. Push only when the user asks.
+- The user reads code; do not paste diffs into the chat. Report what changed and where.
+
 ## Commands
 
 `make help` lists the targets (pwsh, Windows):
@@ -22,7 +36,8 @@ without widgets). Project management lives here too: `backlog/` (Backlog.md task
 Flutter is discovered by the Makefile (`make where` prints the pair it picked): it tries
 `H:/flutter`, `C:/tools/flutter`, `C:/flutter`, `D:/flutter`, `%USERPROFILE%/flutter` and
 `%LOCALAPPDATA%/flutter`, and only falls back to plain `flutter`/`dart` from `PATH`. That is why
-`make live` works from Neovim, whose PATH does not have Flutter on it.
+`make live` works from Neovim, whose PATH does not have Flutter on it. Recipes use the call
+operator (`& "$(FLUTTER)" …`) because a quoted `.bat` path is not a command in `pwsh`.
 
 ## Running tests
 
@@ -37,12 +52,12 @@ Flutter is discovered by the Makefile (`make where` prints the pair it picked): 
     `test()` (`makeRepo()`), and a widget test gets a state object already built from fixtures.
 - If a test does hang, kill it: `Get-Process flutter_tester,dart | Stop-Process -Force`; `Ctrl+C`
   in the running terminal is not enough once the fake clock owns the timers.
-- Run only the files that cover the change while iterating, the whole suite before a commit.
-- Widget tests run on a fake clock: `pump(duration)`, no `pumpAndSettle` with a real timer.
 - A test cleans up after itself: temp repos go through the `makeRepo()` helper in
   `test/support/`, which registers cleanup, and they set `core.fsmonitor=false`. After a run the
   count of `purrage_*` folders in `%TEMP%` is the same as before.
 - Parser tests use fixture strings and need no git at all.
+- `test/support/fake_repo.dart` implements `GitRepo` in memory; `Shell(repo: …, seeded: changes)`
+  makes the real shell drivable without git, files or a clock.
 
 ## UI code
 
@@ -53,31 +68,77 @@ Flutter is discovered by the Makefile (`make where` prints the pair it picked): 
   `lib/state/`, which tests drive without widgets.
 - Interactive items get the pointer cursor and a tooltip, explicitly, not by trusting a default.
   A label is part of its control: clicking the text does what the control does.
-- Errors: a failed load shows `ErrorPane` in place of the view, a failed action shows
-  `showActionError` with the git text behind Details.
+- Colours and sizes come from `lib/ui/theme.dart` (near-black surface, one indigo accent, hairline
+  dividers, compact density). Do not introduce a raw colour in a widget; add a token instead.
+  `colorScheme.outline` is a *line* colour — text uses `onSurface` / `onSurfaceVariant`.
+- The list is a `ListView.builder` over a flat list of headers and rows. A rebuild must cost the
+  visible tiles, never every row in the repo.
+- Row actions are text (`Add`/`Untrack`, `Ignore`) in a fixed slot between the folder and the name,
+  and they call the shell, which reports; they must never call `Changes` directly, or a failure
+  has nowhere to go.
+
+## Responsiveness (the app must feel instant)
+
+- **Actions are optimistic**: `track`, `untrack`, `ignore` move or remove the rows first, run git
+  behind them, and restore the previous list on failure. A click is a redraw, not a round trip.
+- **No timers, no polling.** Nothing reads `git status` on an interval. Refresh happens after an
+  action, and on `r` / `F5` / `Ctrl+R`. A refresh whose result equals the current list does not
+  redraw.
+- **Never run git from a cursor move.** The ignore pane's `git check-ignore` is debounced 250 ms
+  after the cursor settles; that subprocess per keypress was the sluggish navigation.
+- Reveal scrolls only when the focused row is outside the viewport; re-centring every step makes
+  the list drag behind the cursor.
+
+## Reporting and the Console mode
+
+- `Changes` keeps `lastFailure` (`ActionFailure`: summary, detail, code, origin, error flag) plus
+  `lastCommand`, `lastOrigin`, `lastChanged`, set by every action.
+- `Shell.say()` shows a notice **and** adds a console row; `Shell.report()` adds a console row for
+  successes. Both go through `ActionFailure`, so the notice and the console never disagree.
+- The notice bar (`lib/state/notices.dart`, `lib/ui/notice_bar.dart`) pauses its countdown while
+  the mouse is over it. Successes say nothing on screen; failures always speak, with the file and
+  the reason.
+- The Console mode (`Alt+3`) is newest-first: time, code badge, action, summary, and an expandable
+  detail with the origin chain, parameters, `cwd` and the command line.
+- A refusal is a failure: "`es/x/` is already ignored by `/es/` in `.gitignore:135`". Never return
+  silently — a no-op that looks like a success is the worst outcome.
 
 ## Keys and mouse
 
-- The Ops contract, copied: `navKey(event)` for Up/Down and `j`/`k`/WASD, `KeySequence` for
-  two-key commands, Tab/Shift+Tab between panes with wrapping, plain keys ignored while a text
-  field (the filter, the commit summary) has focus.
-- A new key goes into three places: the handler, `keyTable` in `lib/ui/help_view.dart` (Help
-  mode), and the Keys section of `PLAN.md`.
+- The Ops contract, copied: `navKey(event)` for Up/Down and `j`/`k`/WASD, Tab/Shift+Tab between
+  panes with wrapping, plain keys ignored while a text field has focus.
+- Selection is the contract: `Shift+Up/Down` extends from the anchor, `Ctrl+Enter` toggles the
+  cursor row, `Ctrl`/`Shift` click do the same with the mouse, and **every action acts on the
+  highlighted rows** (no silent fallback to the cursor). Rows that are chosen are tinted; the
+  cursor keeps its accent bar.
+- Modes: `Alt+1` Changes, `Alt+2` Settings, `Alt+3` Console, `Alt+4` Help; `Alt+]` / `Alt+[` cycle.
+- A new key goes into three places: the handler, `keyTable` in `lib/ui/help_view.dart`, and the
+  Keys section of `PLAN.md`.
 - The debug bar (bug button, bottom right) names the focused element by its role and shows the
   last key and mouse event.
 
 ## Git
 
 - Access goes through the `git` package (`GitDir.runCommand`), never `Process.run('git', ...)`
-  spread around the code; one wrapper in `lib/state/repo.dart`.
+  spread around the code; one wrapper in `lib/state/repo.dart`. The one exception is `status()`,
+  which decodes `-z` output as UTF-8 itself.
 - Status is one call: `git status --porcelain=v1 -z --untracked-files=all --find-renames`; the
   parser in `lib/state/status.dart` owns the format and is unit-tested with fixtures.
-- Ignore rules are written literally and anchored, escaped, deduplicated, and appended with the
-  file's line endings preserved. Never write an over-broad glob.
+- Ignore rules are written literally and anchored, escaped, deduplicated, with the file's line
+  endings preserved and **no blank line between rules**. Never write an over-broad glob.
+- `git check-ignore -v` output is `<source>:<line>:<pattern>\t<path>` and `<source>` starts with a
+  drive letter on Windows: parse from the right (`^(.*):(\d+):(.*)$`), never at the first colon.
 - Never stage with `-a`, never run a command that can lose work without a confirm dialog.
 
-## Git history
+## Windows quirks this app already handles
 
-- Commit per feature, message `area: what changed` (lowercase area, no trailing period), the body
-  says why, and end with `Co-Authored-By: agent <agent@it-agent.no>`.
-- Push only when the user asks.
+- **Hidden/System files cannot be overwritten**: `CreateFileW(CREATE_ALWAYS)` returns
+  `ERROR_ACCESS_DENIED` (errno 5) for a Hidden file, which is why every dot file here (`.gitignore`,
+  `.config/git/ignore`, `.git/info/exclude`) failed. `Repo.writeTextFile` tries the plain write
+  first, then clears `H`/`S` with `attrib`, re-reads to confirm, writes, and restores exactly the
+  flags that were set — the same repair as `~/AppData/Local/nvim/plugin/hidden-write.lua`.
+- `where <name>` may list a `.bat` wrapper before the real `.exe`; a `.bat` has to start through
+  `cmd /c start`, which shows a console. Prefer `.exe`, then `.cmd`/`.bat`, then anything.
+- Editor order: saved choice, `nvim-qt`, a *resolvable* `git var GIT_EDITOR` (skip `vi` without
+  `vi` on PATH), `VISUAL`, `EDITOR`, known editors, Notepad. `tool/editors_probe.dart` prints the
+  result without starting the app.
