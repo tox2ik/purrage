@@ -91,7 +91,7 @@ class RepoBrowser extends ChangeNotifier {
     required String startDirectory,
     this.maxDepth = 5,
     this.onReport,
-  }) : directory = _clean(startDirectory);
+  }) : _directory = _clean(startDirectory);
 
   /// Five levels below the browsed directory, as asked.
   final int maxDepth;
@@ -153,7 +153,10 @@ class RepoBrowser extends ChangeNotifier {
   /// drive root can still be enormous; the user can narrow the folder instead.
   static const maxDirectories = 20000;
 
-  String directory;
+  String get directory => _directory;
+  String _directory;
+
+  set directory(String value) => _directory = _clean(value);
 
   List<String> repos = const [];
   bool scanning = false;
@@ -162,8 +165,12 @@ class RepoBrowser extends ChangeNotifier {
   /// Set while a scan is running and a new one was asked for.
   bool _again = false;
 
-  static String _clean(String path) =>
-      path.replaceAll(r'\', '/').replaceAll(RegExp(r'/+$'), '');
+  static String _clean(String path) {
+    var clean = path.replaceAll(r'\', '/').replaceAll(RegExp(r'/+$'), '');
+    // Keep a drive root as `C:/`; `C:` alone means "current directory on C:".
+    if (RegExp(r'^[A-Za-z]:$').hasMatch(clean)) clean = '$clean/';
+    return clean;
+  }
 
   static bool _inSkippedTree(String path) {
     final lower = _clean(path).toLowerCase();
@@ -197,7 +204,8 @@ class RepoBrowser extends ChangeNotifier {
     final slash = directory.lastIndexOf('/');
     if (slash <= 0) return;
     final parent = directory.substring(0, slash);
-    await goTo(parent);
+    // From `C:/Users` the parent is the drive root, not `C:`.
+    await goTo(parent.length == 2 && parent.endsWith(':') ? '$parent/' : parent);
   }
 
   Future<void> goTo(String path) async {
