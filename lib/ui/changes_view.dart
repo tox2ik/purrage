@@ -53,57 +53,76 @@ class ChangesView extends StatelessWidget {
   final VoidCallback onNewIgnore;
   final Future<void> Function(String summary) onCommit;
 
+  /// Built once per Changes, not per notify: each part listens to the slice of
+  /// [Changes] it shows (the list to the rows and the cursor, the banner and the
+  /// commit bar to the status), so a cursor move redraws only the list.
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: changes,
-      builder: (context, _) => Column(
-        children: [
-          if (changes.error != null) _ErrorBanner(message: changes.error!),
-          Expanded(
-            child: Row(
-              children: [
-                Expanded(
-                  child: FileList(
-                    changes: changes,
-                    onIgnore: onIgnore,                    onQuickIgnore: onQuickIgnore,
-                    onTrack: onTrack,
-                    onUntrack: onUntrack,
-                    onOpen: onOpen,
-                    onReload: onReload,
-                    filterController: filterController,
-                    filterFocus: filterFocus,
-                    listFocus: listFocus,
-                  ),
+    return Column(
+      children: [
+        _ErrorBanner(changes: changes),
+        Expanded(
+          child: Row(
+            children: [
+              Expanded(child: _list()),
+              const VerticalDivider(width: 1),
+              SizedBox(
+                width: 360,
+                child: IgnorePane(
+                  state: ignoreState,
+                  onOpenInEditor: onOpenIgnore,
+                  onNewHere: onNewIgnore,
+                  railFocus: railFocus,
+                  linesFocus: linesFocus,
                 ),
-                const VerticalDivider(width: 1),
-                SizedBox(
-                  width: 360,
-                  child: IgnorePane(
-                    state: ignoreState,
-                    onOpenInEditor: onOpenIgnore,
-                    onNewHere: onNewIgnore,
-                    railFocus: railFocus,
-                    linesFocus: linesFocus,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-          const Divider(height: 1),
-          CommitBar(
-            changes: changes,
-            controller: commitController,
-            focusNode: commitFocus,
-            onCommit: onCommit,
-          ),
-        ],
-      ),
+        ),
+        const Divider(height: 1),
+        CommitBar(
+          changes: changes,
+          controller: commitController,
+          focusNode: commitFocus,
+          onCommit: onCommit,
+        ),
+      ],
     );
   }
+
+  Widget _list() => FileList(
+        changes: changes,
+        onIgnore: onIgnore,
+        onQuickIgnore: onQuickIgnore,
+        onTrack: onTrack,
+        onUntrack: onUntrack,
+        onOpen: onOpen,
+        onReload: onReload,
+        filterController: filterController,
+        filterFocus: filterFocus,
+        listFocus: listFocus,
+      );
 }
+
+/// git's error from the last load or refresh, across the top; nothing when
+/// there is none. Listens to the status only.
 class _ErrorBanner extends StatelessWidget {
-  const _ErrorBanner({required this.message});
+  const _ErrorBanner({required this.changes});
+
+  final Changes changes;
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+        listenable: changes.status,
+        builder: (context, _) {
+          final message = changes.error;
+          return message == null ? const SizedBox.shrink() : _ErrorText(message: message);
+        },
+      );
+}
+
+class _ErrorText extends StatelessWidget {
+  const _ErrorText({required this.message});
 
   final String message;
 

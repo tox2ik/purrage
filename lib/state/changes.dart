@@ -116,7 +116,7 @@ class Changes extends ChangeNotifier {
       // event loop while the user scrolls.
       if (++asked % 20 == 0) await Future<void>.delayed(Duration.zero);
     }
-    notifyListeners();
+    _notify(rows: true);
   }
 
   /// The nested-repository probe that `load()` started and nobody awaits, kept
@@ -140,6 +140,9 @@ class Changes extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _cursorSignal.dispose();
+    _rowsSignal.dispose();
+    _statusSignal.dispose();
     super.dispose();
   }
 
@@ -193,7 +196,7 @@ class Changes extends ChangeNotifier {
 
   Future<void> _load() async {
     _busy = true;
-    notifyListeners();
+    _notify(status: true);
     final keepPath = selected?.path;
     try {
       final rows = await repo.status();
@@ -207,7 +210,7 @@ class Changes extends ChangeNotifier {
       _error = error.message;
     } finally {
       _busy = false;
-      notifyListeners();
+      _notify(rows: true, cursor: true, status: true);
     }
     if (!_disposed) _nestedScan = _scanNested(_rows);
   }
@@ -240,7 +243,7 @@ class Changes extends ChangeNotifier {
     _selection.clear();
     _anchor = null;
     _selectCursorIfEmpty();
-    notifyListeners();
+    _notify(rows: true, cursor: true);
   }
 
   void _applyFilter() {
@@ -296,7 +299,7 @@ class Changes extends ChangeNotifier {
       ..clear()
       ..add(_key(_visible[next]));
     _anchor = next;
-    notifyListeners();
+    _notify(cursor: true);
     span
       ..markPainted()
       ..end();
@@ -317,7 +320,7 @@ class Changes extends ChangeNotifier {
       _selection.add(_key(_visible[i]));
     }
     _anchor = from;
-    notifyListeners();
+    _notify(cursor: true);
   }
 
   /// Ctrl+Enter: turn the cursor row's highlight on or off, leaving the rest of
@@ -328,7 +331,7 @@ class Changes extends ChangeNotifier {
     final key = _key(row);
     if (!_selection.remove(key)) _selection.add(key);
     _anchor = _index;
-    notifyListeners();
+    _notify(cursor: true);
   }
 
   /// A click in the list. [ctrl] toggles one row, [shift] takes the range from
@@ -357,7 +360,7 @@ class Changes extends ChangeNotifier {
     }
     _index = next;
     if (_selection.isEmpty) _selection.add(_key(row));
-    notifyListeners();
+    _notify(cursor: true);
   }
 
   /// A row's own action button was clicked: act on that row, unless it is part
@@ -375,7 +378,7 @@ class Changes extends ChangeNotifier {
       ..clear()
       ..add(_key(row));
     _anchor = _index;
-    notifyListeners();
+    _notify(cursor: true);
   }
 
   /// Select every visible row.
@@ -384,7 +387,7 @@ class Changes extends ChangeNotifier {
       ..clear()
       ..addAll(_visible.map(_key));
     _anchor = 0;
-    notifyListeners();
+    _notify(cursor: true);
   }
 
   /// Stage the highlighted rows, at once, then let git confirm.
@@ -516,7 +519,7 @@ class Changes extends ChangeNotifier {
     final changed = stagedCount;
     _busy = true;
     _error = null;
-    notifyListeners();
+    _notify(status: true);
     return _enqueue(() async {
       try {
         await repo.commit(message);
@@ -534,7 +537,7 @@ class Changes extends ChangeNotifier {
         );
       } finally {
         _busy = false;
-        notifyListeners();
+        _notify(status: true);
       }
       await load();
       return ActionResult.done(
@@ -794,8 +797,35 @@ class Changes extends ChangeNotifier {
     _pruneSelection();
     _index = _visible.isEmpty ? 0 : _index.clamp(0, _visible.length - 1);
     _selectCursorIfEmpty();
+    _notify(rows: true, cursor: true, status: true);
+  }
+
+  /// What a change touched, so each part of the view listens to what it shows:
+  /// a cursor move must not rebuild the commit bar or the ignore pane. Plain
+  /// listeners of [Changes] still hear everything. After [dispose] nobody is
+  /// told anything.
+  void _notify({bool rows = false, bool cursor = false, bool status = false}) {
+    if (_disposed) return;
+    if (rows) _rowsSignal.fire();
+    if (cursor) _cursorSignal.fire();
+    if (status) _statusSignal.fire();
     notifyListeners();
   }
+
+  /// The cursor and the selection moved (also after the rows changed): the
+  /// list's tiles, the reveal and the ignore pane's probe listen here.
+  Listenable get cursor => _cursorSignal;
+
+  /// The rows, the filter or the nested markers changed: the list's shape.
+  Listenable get rowsChanged => _rowsSignal;
+
+  /// Busy, the error, or the staged count changed: the banner and the commit
+  /// bar.
+  Listenable get status => _statusSignal;
+
+  final _Signal _cursorSignal = _Signal();
+  final _Signal _rowsSignal = _Signal();
+  final _Signal _statusSignal = _Signal();
 
   /// Ask git for the truth after an optimistic change, without the busy state
   /// that makes the UI feel stuck. Nothing is redrawn when nothing moved.
@@ -805,12 +835,16 @@ class Changes extends ChangeNotifier {
     try {
       final rows = await repo.status();
       final sorted = [...rows]..sort(StatusRow.compare);
-      if (_sameRows(sorted, _rows)) return;
-      _setRows(sorted);
+      final hadError = _error != null;
       _error = null;
+      if (_sameRows(sorted, _rows)) {
+        if (hadError) _notify(status: true);
+        return;
+      }
+      _setRows(sorted);
     } on GitException catch (error) {
       _error = error.message;
-      notifyListeners();
+      _notify(status: true);
     }
   }
 
@@ -960,4 +994,9 @@ class ActionResult {
 
   /// The sentence the notice shows, or null for a success.
   String? get problem => failure?.summary;
+}
+
+/// A listenable that [Changes] fires by hand.
+class _Signal extends ChangeNotifier {
+  void fire() => notifyListeners();
 }

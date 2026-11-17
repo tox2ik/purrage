@@ -50,10 +50,17 @@ class _FileListState extends State<FileList> {
 
   Changes get changes => widget.changes;
 
+  /// What the list draws: the rows (and filter) and the cursor. The filter
+  /// field above it listens to neither.
+  late Listenable shown = _shownBy(widget.changes);
+
+  static Listenable _shownBy(Changes changes) =>
+      Listenable.merge([changes.rowsChanged, changes.cursor]);
+
   @override
   void initState() {
     super.initState();
-    changes.addListener(_reveal);
+    changes.cursor.addListener(_reveal);
   }
 
   @override
@@ -61,13 +68,14 @@ class _FileListState extends State<FileList> {
     super.didUpdateWidget(old);
     // Browse can open another repository, which brings a new Changes.
     if (old.changes == widget.changes) return;
-    old.changes.removeListener(_reveal);
-    widget.changes.addListener(_reveal);
+    old.changes.cursor.removeListener(_reveal);
+    widget.changes.cursor.addListener(_reveal);
+    shown = _shownBy(widget.changes);
   }
 
   @override
   void dispose() {
-    changes.removeListener(_reveal);
+    changes.cursor.removeListener(_reveal);
     scroll.dispose();
     super.dispose();
   }
@@ -132,10 +140,13 @@ class _FileListState extends State<FileList> {
     return Column(
       children: [
         header,
-        Expanded(child: Focus(focusNode: widget.listFocus, child: _body())),
+        Expanded(child: Focus(focusNode: widget.listFocus, child: _shownList())),
       ],
     );
   }
+
+  /// Redraws on the rows and the cursor, not on busy or the error.
+  Widget _shownList() => ListenableBuilder(listenable: shown, builder: (context, _) => _body());
 
   Widget _body() {
     if (changes.rows.isEmpty) {

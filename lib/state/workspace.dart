@@ -68,7 +68,7 @@ class Workspace extends ChangeNotifier {
     _changes = changes ?? Changes(repo);
     _ignorePane = IgnorePaneState(repo);
     this.browser = (browser ?? _realBrowser)(repo.path, logScan);
-    _changes.addListener(_cursorMoved);
+    _changes.cursor.addListener(_cursorMoved);
   }
 
   static RepoBrowser _realBrowser(String start, void Function(ScanReport) onReport) =>
@@ -131,7 +131,7 @@ class Workspace extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _probe?.cancel();
-    _changes.removeListener(_cursorMoved);
+    _changes.cursor.removeListener(_cursorMoved);
     _changes.dispose();
     _ignorePane.dispose();
     browser.dispose();
@@ -307,11 +307,12 @@ class Workspace extends ChangeNotifier {
 
   void _swap(GitRepo opened, Changes next) {
     _probe?.cancel();
-    _changes.removeListener(_cursorMoved);
+    _changes.cursor.removeListener(_cursorMoved);
     _changes.dispose();
     _ignorePane.dispose();
     _repo = opened;
-    _changes = next..addListener(_cursorMoved);
+    _changes = next;
+    _changes.cursor.addListener(_cursorMoved);
     _ignorePane = IgnorePaneState(opened);
     notifyListeners();
   }

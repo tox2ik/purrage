@@ -21,8 +21,15 @@ class CommitBar extends StatelessWidget {
   final FocusNode focusNode;
   final Future<void> Function(String summary) onCommit;
 
+  /// Listens to the status only (busy, staged count): a cursor move does not
+  /// rebuild the field or the button.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => ListenableBuilder(
+        listenable: changes.status,
+        builder: (context, _) => _bar(),
+      );
+
+  Widget _bar() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
       child: Row(
