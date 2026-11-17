@@ -19,6 +19,10 @@ without widgets). Project management lives here too: `backlog/` (Backlog.md task
   here. The shell runs commands and reads state, nothing else.
 - One commit per feature, `area: what changed`, body says why, `Co-Authored-By: agent
   <agent@it-agent.no>`. Push only when the user asks.
+- Planned work is in `backlog/tasks/` (map: `backlog/docs/doc-1 - Review-2026-11-17.md`) and
+  is done in a worktree per task, in its own session, created from the **local** `main`
+  (`git worktree add -b <branch> <path> main`), never `origin/main`: local main has commits that
+  are not pushed. Plans and suggestions themselves go on `main`.
 - The user reads code; do not paste diffs into the chat. Report what changed and where.
 
 ## Commands
