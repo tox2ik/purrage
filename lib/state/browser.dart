@@ -100,7 +100,7 @@ class RepoBrowser extends ChangeNotifier {
   void Function(ScanReport report)? onReport;
 
   /// Folders that never hold the checkout the user wants, and would dominate the
-  /// walk on a home directory.
+  /// walk on a home directory. Lower case; the comparison lower-cases the name.
   static const skip = {
     '.git',
     'node_modules',
@@ -122,7 +122,7 @@ class RepoBrowser extends ChangeNotifier {
     '.turbo',
     '.terraform',
     'vendor',
-    'Pods',
+    'pods',
     '__pycache__',
     '.npm',
     '.pnpm-store',
@@ -169,6 +169,14 @@ class RepoBrowser extends ChangeNotifier {
     final lower = _clean(path).toLowerCase();
     for (final tree in skipTrees) {
       if (lower == tree || lower.startsWith('$tree/')) return true;
+    }
+    return false;
+  }
+
+  /// True for a path that sits inside a `.git` folder, in any casing.
+  static bool _belowGitDir(String path) {
+    for (final segment in _clean(path).split('/')) {
+      if (segment.toLowerCase() == '.git') return true;
     }
     return false;
   }
@@ -263,8 +271,14 @@ class RepoBrowser extends ChangeNotifier {
         if (child is! Directory) continue;
         if (FileSystemEntity.isLinkSync(child.path)) continue;
         final name = child.path.replaceAll(r'\', '/').split('/').last;
-        if (skip.contains(name)) continue;
+        if (skip.contains(name.toLowerCase())) continue;
         final clean = _clean(child.path);
+        // Never below a `.git`, whatever its casing: objects, refs and the rest
+        // are nobody's checkout and are expensive to enumerate.
+        if (_belowGitDir(clean)) {
+          skipped++;
+          continue;
+        }
         if (_inSkippedTree(clean)) {
           skipped++;
           continue;
