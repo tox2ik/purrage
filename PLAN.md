@@ -258,6 +258,30 @@ The ignore pane becomes a list of `.gitignore` files, not one file:
 - Follow `~/ws/nvimos-ops/declarative_ui_guidelines.md`: ≤3 levels of inline layout nesting,
   `build` under 50 lines, lists from data with builders, no logic in event handlers.
 
+## Style
+
+One dark, flat, quiet sheet, as in Ops. **Normative: tokens only.** `lib/ui/theme.dart` (the `T`
+class and the colour scheme) is the only place with a colour, a font size or family, a radius, an
+icon size, a gap or a fixed height; a test greps `lib/ui/` for `fontSize:`, `fontFamily:`,
+`Color(`, `Colors.` and `.withValues(`. A new look is a new token. The values below describe the
+current palette and scales; they are not normative.
+
+- Type: `T.body` 12.5, `T.small` 11.5, `T.tiny` 11, `T.section` 11 (spaced), `T.title` 13 bold,
+  `T.code` 12 / `codeSmall` 11.5 / `codeTiny` 11 in Consolas (fallback Cascadia Mono). Nothing
+  under 11 px.
+- Radii 4 / 6 / pill; icons 14 / 16 / 20; gaps 2 / 4 / 6 / 8 / 12 / 16 / 24.
+- Fixed heights: row 24, section header 30, pane header 32, commit bar 48, row action 20. The file
+  list places rows by index, so the row and header heights are exact.
+- Colours with a meaning: `chosen`, `cursor`, `current`, `hover`, `folder`. None carries the
+  meaning alone: the cursor has its bar, a folder its trailing slash, a failure its code badge or
+  icon.
+- Hover is a palette colour, instant; nothing ripples (`NoSplash`).
+- The pane that has the keys has an accent line on top; a text field that has them, its accent
+  border.
+- Text contrast at least 4.5:1 (`_muted` on the surface 5.8:1); a hairline is never the only
+  boundary of a control.
+- Every tooltip of an action that has a key names the key.
+
 ## Tests
 
 - `dart_test.yaml`: `concurrency: 2`, `timeout: 22s`; `make test` passes the same.

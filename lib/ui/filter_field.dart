@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'theme.dart';
 import 'widgets.dart';
 
 /// The filter field at the top of a list, the way Ops does it: `/` puts the
@@ -37,7 +38,7 @@ class FilterField extends StatelessWidget {
           style: Theme.of(context).textTheme.bodyMedium,
           decoration: InputDecoration(
             isDense: true,
-            prefixIcon: const Icon(Icons.search, size: 15),
+            prefixIcon: const Icon(Icons.search, size: T.iconSmall),
             prefixIconConstraints: const BoxConstraints(minWidth: 30),
             suffixIcon: _ClearButton(controller: controller, onCleared: onChanged),
             suffixIconConstraints: const BoxConstraints(minWidth: 30, minHeight: 30),
@@ -88,6 +89,11 @@ class _ClearButton extends StatelessWidget {
         valueListenable: controller,
         builder: (context, value, _) => value.text.isEmpty
             ? const SizedBox.shrink()
-            : IconAction(icon: Icons.close, size: 15, tooltip: 'Clear the filter', onPressed: _clear),
+            : IconAction(
+                icon: Icons.close,
+                size: T.iconSmall,
+                tooltip: 'Clear the filter (Esc)',
+                onPressed: _clear,
+              ),
       );
 }

@@ -109,18 +109,18 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final mono = TextStyle(
-      fontFamily: 'monospace',
-      fontSize: 11.5,
-      color: Theme.of(context).colorScheme.onSurfaceVariant,
-    );
+    final mono = T.codeSmall.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+      padding: const EdgeInsets.fromLTRB(10, T.gap8, 10, T.gap8),
       child: Row(
         children: [
-          IconAction(icon: Icons.arrow_upward, tooltip: 'Up one level', onPressed: browser.up),
-          const SizedBox(width: 4),
-          IconAction(icon: Icons.refresh, tooltip: 'Scan this directory again', onPressed: browser.rescan),
+          IconAction(icon: Icons.arrow_upward, tooltip: 'Up one level (Backspace or h)', onPressed: browser.up),
+          const SizedBox(width: T.gap4),
+          IconAction(
+            icon: Icons.refresh,
+            tooltip: 'Scan this directory again (F5 or Ctrl+R)',
+            onPressed: browser.rescan,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(browser.directory, overflow: TextOverflow.ellipsis, maxLines: 1, style: mono),
@@ -160,7 +160,7 @@ class _DrivePicker extends StatelessWidget {
       tooltip: 'Switch drive',
       child: DropdownButton<String>(
         value: null,
-        hint: Text('Drive', style: TextStyle(fontSize: 11.5, color: scheme.onSurfaceVariant)),
+        hint: Text('Drive', style: T.small.copyWith(color: scheme.onSurfaceVariant)),
         isDense: true,
         underline: const SizedBox.shrink(),
         padding: EdgeInsets.zero,
@@ -168,7 +168,7 @@ class _DrivePicker extends StatelessWidget {
           for (final root in drives)
             DropdownMenuItem(
               value: root,
-              child: Text(root.substring(0, 2), style: TextStyle(fontSize: 11.5, color: scheme.onSurface)),
+              child: Text(root.substring(0, 2), style: T.small.copyWith(color: scheme.onSurface)),
             ),
         ],
         onChanged: _picked,
@@ -236,21 +236,21 @@ class RepoRow extends StatelessWidget {
     return HoverRow(
       tooltip: isCurrent ? 'Already open: $path' : 'Open $path',
       onTap: onTap,
-      padding: const EdgeInsets.fromLTRB(9, 2, 12, 2),
+      padding: const EdgeInsets.fromLTRB(T.gap8, T.gap2, T.gap12, T.gap2),
       decoration: BoxDecoration(
         color: isCurrent
-            ? scheme.primaryContainer.withValues(alpha: 0.45)
+            ? T.current
             : focused
-                ? scheme.secondaryContainer.withValues(alpha: 0.35)
+                ? T.cursor
                 : null,
         border: Border(
-          left: BorderSide(width: 3, color: isCurrent || focused ? scheme.primary : Colors.transparent),
+          left: BorderSide(width: T.barWidth, color: isCurrent || focused ? scheme.primary : T.none),
         ),
       ),
       child: Row(
         children: [
           Expanded(flex: 2, child: _FolderCell(parent: parent)),
-          const SizedBox(width: 6),
+          const SizedBox(width: T.gap6),
           Expanded(flex: 3, child: _NameCell(name: name, isCurrent: isCurrent)),
         ],
       ),
@@ -269,11 +269,7 @@ class _FolderCell extends StatelessWidget {
         textAlign: TextAlign.right,
         overflow: TextOverflow.ellipsis,
         maxLines: 1,
-        style: TextStyle(
-          fontFamily: 'monospace',
-          fontSize: 11.5,
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
-        ),
+        style: T.codeSmall.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
       );
 }
 
@@ -291,12 +287,12 @@ class _NameCell extends StatelessWidget {
               name,
               overflow: TextOverflow.ellipsis,
               maxLines: 1,
-              style: const TextStyle(fontSize: 12.5, color: purrageFolder),
+              style: T.body.copyWith(color: T.folder),
             ),
           ),
           if (isCurrent) ...[
-            const SizedBox(width: 6),
-            Text('open', style: TextStyle(fontSize: 10.5, color: Theme.of(context).colorScheme.primary)),
+            const SizedBox(width: T.gap6),
+            Text('open', style: T.tiny.copyWith(color: Theme.of(context).colorScheme.primary)),
           ],
         ],
       );

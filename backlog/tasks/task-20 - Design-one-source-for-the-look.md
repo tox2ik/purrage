@@ -1,7 +1,7 @@
 ---
 id: task-20
 title: 'Design: one source for the look'
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-11-17'
 labels:
@@ -59,11 +59,41 @@ of the look is still written inline:
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 no `fontSize:`, `fontFamily:`, `Color(`, `Colors.` or `.withValues(` in `lib/ui/` outside `theme.dart` (a test greps for it)
-- [ ] #2 the text, radius, icon and gap scales, and the fixed heights, are named in `theme.dart`; no text under 11 px
+- [x] #1 no `fontSize:`, `fontFamily:`, `Color(`, `Colors.` or `.withValues(` in `lib/ui/` outside `theme.dart` (a test greps for it)
+- [x] #2 the text, radius, icon and gap scales, and the fixed heights, are named in `theme.dart`; no text under 11 px
 - [ ] #3 monospace text renders in Consolas on Windows (checked by hand in `make run`)
-- [ ] #4 rows hover with the palette's colour and do not ripple
-- [ ] #5 the pane that has the keys is visibly marked; switching with Tab moves the mark
-- [ ] #6 every action tooltip names its key
-- [ ] #7 PLAN.md gets a short "Style" section with the scales (not normative for the colours, normative for "tokens only")
+- [x] #4 rows hover with the palette's colour and do not ripple
+- [x] #5 the pane that has the keys is visibly marked; switching with Tab moves the mark
+- [x] #6 every action tooltip names its key
+- [x] #7 PLAN.md gets a short "Style" section with the scales (not normative for the colours, normative for "tokens only")
 <!-- AC:END -->
+
+## Notes
+
+- Tokens live in `abstract final class T` in `theme.dart` (started by task-4 for the row
+  heights): type `body`/`small`/`tiny`/`section`/`title`/`code`/`codeSmall`/`codeTiny`, radii,
+  icons, gaps, heights, and the colours `chosen`, `cursor`, `current`, `hover`, `none`, `folder`,
+  `tooltip`, `thumb`. `purrageFolder` became `T.folder`. Sizes raised to 11: `labelMedium`,
+  `labelSmall`, the row actions, the status letter, the `git` chip, the console code badge.
+- Code font: `Consolas`, fallback `Cascadia Mono`, `Courier New`. #3 stays for the user: look at
+  the folder column and the console in `make run`.
+- No ripple: `NoSplash` and `hoverColor: T.hover` in the theme (also for filled, text and icon
+  buttons); rows' `InkWell`s set nothing of their own (tested).
+- Contrast computed (WCAG): `_muted` on surface 5.8, raised 5.4, chosen 5.1, hover 5.1, tooltip
+  4.8; folder amber on chosen 10.1; `_line` 1.3 (never the only boundary). In the theme comment.
+- Console: a failure without a code gets an error icon, so red is never alone.
+- Tooltips with keys: rail `Changes (Alt+1)` etc. (stack A's `mode_rail.dart`; task-10 makes it a
+  single source), Add/Untrack/Ignore, reload (F5, Ctrl+R, r), clear filter (Esc), open ignore
+  file (E), Commit (Enter, c), Browse up (Backspace, h) and rescan (F5, Ctrl+R).
+- #5: `PaneMark` (an atom in `widgets.dart`) draws an accent line on top of a pane while one of
+  its focus nodes has the keys: the list (`listFocus`) and the ignore pane (`railFocus`,
+  `linesFocus`), task-9's Tab stops. A focused text field has its own accent border. Open: the
+  inactive list's cursor row could read weaker.
+- Joined onto stack A: the tokens went into A's atoms (`IconAction`, `SmallButton`,
+  `LinkButton`, `IconToggle`, `Pill`) instead of the hand-built widgets; the commit button's
+  tooltip goes through `Clickable`. A's tooltips already named most keys; added Space, Shift+I and
+  right-click, F5/Ctrl+R/r, Esc, E, Backspace/h.
+- Named but not yet applied: `T.paneHeaderHeight` (32) and `T.commitBarHeight` (48). The commit
+  bar's outlined field with a floating label is taller than 48 minus padding; fixing it needs a
+  decision on the label (task-13 polishes the commit bar).
+- Not done: the window title (task-13).

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../state/changes.dart';
 import '../state/ignore_rules.dart';
 import '../state/status.dart';
+import 'theme.dart';
 
 /// What the user chose in the ignore dialog.
 class IgnoreChoice {
@@ -109,7 +110,7 @@ class _IgnoreDialogState extends State<IgnoreDialog> {
               contentPadding: EdgeInsets.zero,
               title: Text(_targetLabel(option)),
               subtitle: Text(option.path, maxLines: 1, overflow: TextOverflow.ellipsis),
-              trailing: option == target ? const Icon(Icons.check, size: 18) : null,
+              trailing: option == target ? const Icon(Icons.check, size: T.icon) : null,
               onTap: () => setState(() => target = option),
             ),
         ],
@@ -142,11 +143,11 @@ class _IgnoreDialogState extends State<IgnoreDialog> {
             for (final line in lines.take(8))
               Text(
                 line,
-                style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                style: T.code,
               ),
             if (lines.length > 8)
               Text('… ${lines.length - 8} more',
-                  style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+                  style: T.code),
           ],
         ),
       );

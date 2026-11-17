@@ -246,15 +246,15 @@ class FileRow extends StatelessWidget {
       onTap: onTap,
       onSecondaryTap: onIgnore,
       onDoubleTap: onOpen,
-      padding: const EdgeInsets.fromLTRB(9, 2, 8, 2),
+      padding: const EdgeInsets.fromLTRB(T.gap8, T.gap2, T.gap8, T.gap2),
       decoration: BoxDecoration(
         color: chosen
-            ? scheme.primaryContainer.withValues(alpha: 0.55)
+            ? T.chosen
             : focused
-                ? scheme.secondaryContainer.withValues(alpha: 0.35)
+                ? T.cursor
                 : null,
         border: Border(
-          left: BorderSide(width: 3, color: focused ? scheme.primary : Colors.transparent),
+          left: BorderSide(width: T.barWidth, color: focused ? scheme.primary : T.none),
         ),
       ),
       child: _cells(scheme),
@@ -266,9 +266,9 @@ class FileRow extends StatelessWidget {
   Widget _cells(ColorScheme scheme) => Row(
         children: [
           _Badge(text: _badge, color: chosen ? scheme.primary : scheme.onSurfaceVariant),
-          const SizedBox(width: 7),
+          const SizedBox(width: T.gap6),
           Expanded(flex: 2, child: _FolderCell(folder: row.folder)),
-          const SizedBox(width: 6),
+          const SizedBox(width: T.gap6),
           _RowActions(
             staged: row.isStaged,
             conflict: row.isConflict,
@@ -276,7 +276,7 @@ class FileRow extends StatelessWidget {
             onUntrack: onUntrack,
             onIgnore: onQuickIgnore,
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: T.gap8),
           Expanded(flex: 3, child: _NameCell(row: row, chosen: chosen, nested: nested)),
         ],
       );
@@ -308,8 +308,8 @@ class _Badge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SizedBox(
-        width: 12,
-        child: Text(text, style: TextStyle(fontFamily: 'monospace', fontSize: 10.5, color: color)),
+        width: T.gap12,
+        child: Text(text, style: T.codeTiny.copyWith(color: color)),
       );
 }
 
@@ -324,11 +324,7 @@ class _FolderCell extends StatelessWidget {
         textAlign: TextAlign.right,
         overflow: TextOverflow.ellipsis,
         maxLines: 1,
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-              fontFamily: 'monospace',
-              fontSize: 11.5,
-            ),
+        style: T.codeSmall.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
       );
 }
 
@@ -354,7 +350,7 @@ class _NameCell extends StatelessWidget {
             ),
           ),
           if (nested) ...[
-            const SizedBox(width: 5),
+            const SizedBox(width: T.gap4),
             const Pill(
               'git',
               tooltip: 'Nested git repository: its ignore rules live in its own .gitignore',
@@ -367,7 +363,7 @@ class _NameCell extends StatelessWidget {
   /// folder at a glance; a chosen row is bold on top of that.
   TextStyle? _style(TextStyle? style) {
     var out = style;
-    if (row.path.endsWith('/')) out = out?.copyWith(color: purrageFolder);
+    if (row.path.endsWith('/')) out = out?.copyWith(color: T.folder);
     if (chosen) out = out?.copyWith(fontWeight: FontWeight.w600);
     return out;
   }
@@ -398,14 +394,14 @@ class _RowActions extends StatelessWidget {
         if (!conflict)
           LinkButton(
             label: staged ? 'Untrack' : 'Add',
-            tooltip: staged ? 'Stop tracking this file (u)' : 'Track this file, git add (a)',
+            tooltip: staged ? 'Stop tracking this file (u)' : 'Track this file, git add (Space or a)',
             onTap: staged ? onUntrack : onTrack,
             width: 52,
           ),
-        const SizedBox(width: 4),
+        const SizedBox(width: T.gap4),
         LinkButton(
           label: 'Ignore',
-          tooltip: 'Add the literal path to the root .gitignore (i)',
+          tooltip: 'Add the literal path to the root .gitignore (i; Shift+I or right-click to choose)',
           onTap: onIgnore,
           width: 48,
         ),
@@ -427,8 +423,12 @@ class _Header extends StatelessWidget {
         children: [
           Expanded(child: filter),
           Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: IconAction(icon: Icons.refresh, tooltip: 'Re-read the state (F5)', onPressed: onReload),
+            padding: const EdgeInsets.only(right: T.gap8),
+            child: IconAction(
+              icon: Icons.refresh,
+              tooltip: 'Re-read the state (F5, Ctrl+R or r)',
+              onPressed: onReload,
+            ),
           ),
         ],
       );

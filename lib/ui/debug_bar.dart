@@ -10,6 +10,7 @@ import 'package:flutter/gestures.dart'
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'theme.dart';
 import 'widgets.dart';
 
 /// What each labelled focus node is, in the interface's own words.
@@ -230,7 +231,7 @@ class _DebugBarState extends State<DebugBar> {
       decoration: BoxDecoration(
         color: scheme.surfaceContainerHighest,
         border: Border.all(color: scheme.outlineVariant),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(T.radius),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -254,11 +255,7 @@ class _DebugBarState extends State<DebugBar> {
         '$label: $value',
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          fontFamily: 'monospace',
-          fontSize: 12,
-          color: scheme.onSurfaceVariant,
-        ),
+        style: T.code.copyWith(color: scheme.onSurfaceVariant),
       ),
     );
   }

@@ -6,6 +6,7 @@ import '../state/status.dart';
 import 'commit_bar.dart';
 import 'file_list.dart';
 import 'ignore_pane.dart';
+import 'widgets.dart';
 
 /// The Changes mode: the file list, the commit bar across the bottom.
 class ChangesView extends StatelessWidget {
@@ -64,17 +65,11 @@ class ChangesView extends StatelessWidget {
         Expanded(
           child: Row(
             children: [
-              Expanded(child: _list()),
+              Expanded(child: PaneMark(nodes: [listFocus], child: _list())),
               const VerticalDivider(width: 1),
               SizedBox(
                 width: 360,
-                child: IgnorePane(
-                  state: ignoreState,
-                  onOpenInEditor: onOpenIgnore,
-                  onNewHere: onNewIgnore,
-                  railFocus: railFocus,
-                  linesFocus: linesFocus,
-                ),
+                child: PaneMark(nodes: [railFocus, linesFocus], child: _ignorePane()),
               ),
             ],
           ),
@@ -101,6 +96,14 @@ class ChangesView extends StatelessWidget {
         filterController: filterController,
         filterFocus: filterFocus,
         listFocus: listFocus,
+      );
+
+  Widget _ignorePane() => IgnorePane(
+        state: ignoreState,
+        onOpenInEditor: onOpenIgnore,
+        onNewHere: onNewIgnore,
+        railFocus: railFocus,
+        linesFocus: linesFocus,
       );
 }
 

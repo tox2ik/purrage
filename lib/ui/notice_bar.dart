@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../state/notices.dart';
+import 'theme.dart';
 import 'widgets.dart';
 
 /// The failure notice: a bar near the bottom, dismissed by the close button, by
@@ -47,7 +48,7 @@ class _NoticeCard extends StatelessWidget {
       child: Material(
         elevation: 6,
         color: scheme.errorContainer,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(T.radius),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(14, 6, 6, 6),
           child: Row(

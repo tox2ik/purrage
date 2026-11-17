@@ -8,6 +8,8 @@ library;
 
 import 'package:flutter/material.dart';
 
+import 'theme.dart';
+
 /// The pointer cursor and a tooltip around a control: the one place they are
 /// put on anything clickable. Disabled, the cursor is the plain arrow.
 class Clickable extends StatelessWidget {
@@ -68,7 +70,7 @@ class IconAction extends StatelessWidget {
     required this.icon,
     required this.tooltip,
     required this.onPressed,
-    this.size = 16,
+    this.size = T.icon,
     this.buttonKey,
   });
 
@@ -123,7 +125,7 @@ class SmallButton extends StatelessWidget {
 
   Widget _button() {
     final text = Text(label);
-    final glyph = icon == null ? null : Icon(icon, size: 16);
+    final glyph = icon == null ? null : Icon(icon, size: T.icon);
     if (filled) {
       return glyph == null
           ? FilledButton.tonal(onPressed: onPressed, child: text)
@@ -156,10 +158,10 @@ class LinkButton extends StatelessWidget {
         tooltip: tooltip,
         child: SizedBox(
           width: width,
-          height: 20,
+          height: T.actionHeight,
           child: InkWell(
             onTap: onTap,
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(T.radiusSmall),
             child: Center(child: _label(context)),
           ),
         ),
@@ -169,7 +171,7 @@ class LinkButton extends StatelessWidget {
         label,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: TextStyle(fontSize: 10.5, color: Theme.of(context).colorScheme.onSurfaceVariant),
+        style: T.tiny.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
       );
 }
 
@@ -201,7 +203,7 @@ class IconToggle extends StatelessWidget {
           width: extent,
           height: extent,
           color: active ? scheme.secondaryContainer : null,
-          child: Icon(icon, size: 17, color: active ? scheme.primary : scheme.onSurfaceVariant),
+          child: Icon(icon, size: T.iconLarge, color: active ? scheme.primary : scheme.onSurfaceVariant),
         ),
       ),
     );
@@ -224,16 +226,45 @@ class Pill extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final pill = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+      padding: const EdgeInsets.symmetric(horizontal: T.gap4),
       decoration: BoxDecoration(
         color: background,
         border: background == null ? Border.all(color: scheme.outline) : null,
-        borderRadius: BorderRadius.circular(3),
+        borderRadius: BorderRadius.circular(T.radiusSmall),
       ),
-      child: Text(text, style: TextStyle(fontSize: 9.5, color: color ?? scheme.onSurfaceVariant)),
+      child: Text(text, style: T.codeTiny.copyWith(color: color ?? scheme.onSurfaceVariant)),
     );
     final help = tooltip;
     return help == null ? pill : Tooltip(message: help, child: pill);
+  }
+}
+
+/// The pane that has the keys gets an accent line along its top edge: it has
+/// them while any of its [nodes] has focus, so Tab moves the line. A text field
+/// that has the keys shows its own accent border instead. Rebuilds on focus
+/// changes only, and never rebuilds [child].
+class PaneMark extends StatelessWidget {
+  const PaneMark({super.key, required this.nodes, required this.child});
+
+  final List<FocusNode?> nodes;
+  final Widget child;
+
+  bool get _hasKeys => nodes.any((node) => node?.hasFocus ?? false);
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
+    return ListenableBuilder(
+      listenable: FocusManager.instance,
+      child: child,
+      builder: (context, child) => DecoratedBox(
+        position: DecorationPosition.foreground,
+        decoration: BoxDecoration(
+          border: Border(top: BorderSide(width: T.gap2, color: _hasKeys ? accent : T.none)),
+        ),
+        child: child,
+      ),
+    );
   }
 }
 

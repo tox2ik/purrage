@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../state/console.dart';
 import '../state/list_cursor.dart';
 import 'app_keys.dart';
+import 'theme.dart';
 import 'widgets.dart';
 
 /// The Console mode: every failed user action, newest first, each with its
@@ -134,7 +135,7 @@ class _Entry extends StatelessWidget {
       decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(color: scheme.outlineVariant),
-          left: BorderSide(width: 3, color: focused ? scheme.primary : Colors.transparent),
+          left: BorderSide(width: T.barWidth, color: focused ? scheme.primary : T.none),
         ),
         color: expanded ? scheme.surfaceContainerHighest : null,
       ),
@@ -149,7 +150,7 @@ class _Entry extends StatelessWidget {
   }
 }
 
-const _mono = TextStyle(fontFamily: 'monospace', fontSize: 11.5);
+final _mono = T.codeSmall;
 
 class _Detail extends StatelessWidget {
   const _Detail({required this.entry});
@@ -195,10 +196,14 @@ class _Title extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(entry.timeLabel, style: _mono.copyWith(color: scheme.onSurfaceVariant)),
-        const SizedBox(width: 10),
+        const SizedBox(width: T.gap8),
         if (code != null) ...[
           Pill(code, color: scheme.onErrorContainer, background: scheme.errorContainer),
-          const SizedBox(width: 8),
+          const SizedBox(width: T.gap8),
+        ] else if (failure.error) ...[
+          // A failure is never told apart by its red alone: no code, an icon.
+          Icon(Icons.error_outline, size: T.iconSmall, color: scheme.error, semanticLabel: 'failure'),
+          const SizedBox(width: T.gap8),
         ],
         if (action != null) ...[
           Text(action, style: _mono.copyWith(color: scheme.primary)),
@@ -214,7 +219,7 @@ class _Title extends StatelessWidget {
         ),
         Icon(
           expanded ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_right,
-          size: 15,
+          size: T.icon,
           color: scheme.onSurfaceVariant,
         ),
       ],

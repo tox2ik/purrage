@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../state/ignore_files.dart';
 import 'app_keys.dart';
+import 'theme.dart';
 import 'widgets.dart';
 
 /// The read-only `.gitignore` pane: a rail of every ignore file, the selected
@@ -116,11 +117,7 @@ class _RailItem extends StatelessWidget {
         label,
         overflow: TextOverflow.ellipsis,
         maxLines: 1,
-        style: TextStyle(
-          fontFamily: 'monospace',
-          fontSize: 12,
-          color: selected ? scheme.onSurface : scheme.onSurfaceVariant,
-        ),
+        style: T.code.copyWith(color: selected ? scheme.onSurface : scheme.onSurfaceVariant),
       ),
     );
   }
@@ -172,7 +169,7 @@ class _Header extends StatelessWidget {
                 SmallButton(
                   label: 'Open in editor',
                   icon: Icons.open_in_new,
-                  tooltip: 'Open the selected .gitignore in the editor',
+                  tooltip: 'Open the selected .gitignore in the editor (E)',
                   onPressed: onOpenInEditor,
                 ),
                 SmallButton(
@@ -205,7 +202,7 @@ class _TitleRow extends StatelessWidget {
             state.selected?.path ?? 'no .gitignore selected',
             overflow: TextOverflow.ellipsis,
             maxLines: 1,
-            style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+            style: T.code,
           ),
         ),
         const SizedBox(width: 8),
@@ -214,7 +211,7 @@ class _TitleRow extends StatelessWidget {
             line == null ? 'no file matches' : 'line $line',
             overflow: TextOverflow.ellipsis,
             maxLines: 1,
-            style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
+            style: T.tiny.copyWith(color: scheme.onSurfaceVariant),
           ),
         ),
       ],
@@ -295,7 +292,7 @@ class _Line extends StatelessWidget {
             child: Text(
               '$number',
               textAlign: TextAlign.right,
-              style: TextStyle(fontFamily: 'monospace', fontSize: 12, color: scheme.onSurfaceVariant),
+              style: T.code.copyWith(color: scheme.onSurfaceVariant),
             ),
           ),
           const SizedBox(width: 10),
@@ -304,11 +301,7 @@ class _Line extends StatelessWidget {
               text,
               overflow: TextOverflow.ellipsis,
               maxLines: 1,
-              style: TextStyle(
-                fontFamily: 'monospace',
-                fontSize: 12,
-                color: matched ? scheme.onPrimaryContainer : scheme.onSurface,
-              ),
+              style: T.code.copyWith(color: matched ? scheme.onPrimaryContainer : scheme.onSurface),
             ),
           ),
         ],

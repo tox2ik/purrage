@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../state/changes.dart';
+import 'theme.dart';
+import 'widgets.dart';
 
 /// The bottom bar: one summary line and a Commit button that is only enabled
 /// when something is staged.
@@ -51,10 +53,14 @@ class CommitBar extends StatelessWidget {
               onSubmitted: onCommit,
             ),
           ),
-          const SizedBox(width: 8),
-          FilledButton(
-            onPressed: changes.canCommit ? () => onCommit(controller.text) : null,
-            child: Text('Commit ${changes.stagedCount}'),
+          const SizedBox(width: T.gap8),
+          Clickable(
+            tooltip: 'Commit the staged files (Enter in the message; c goes to the message)',
+            enabled: changes.canCommit,
+            child: FilledButton(
+              onPressed: changes.canCommit ? () => onCommit(controller.text) : null,
+              child: Text('Commit ${changes.stagedCount}'),
+            ),
           ),
         ],
       ),

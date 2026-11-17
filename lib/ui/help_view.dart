@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'app_keys.dart';
+import 'theme.dart';
 
 /// One line of the help table. Every key also appears in PLAN.md.
 class KeyHelp {
@@ -56,7 +57,7 @@ class _KeyRow extends StatelessWidget {
         child: Text(help.what, style: Theme.of(context).textTheme.labelLarge),
       );
     }
-    final mono = Theme.of(context).textTheme.bodyMedium?.copyWith(fontFamily: 'monospace');
+    final mono = T.code;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(

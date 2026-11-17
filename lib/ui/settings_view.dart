@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../state/editors.dart';
 import '../state/list_cursor.dart';
 import 'app_keys.dart';
+import 'theme.dart';
 import 'widgets.dart';
 
 /// The Settings mode: which editor was found, which one is in use, and the
@@ -235,7 +236,7 @@ class _EditorRow extends StatelessWidget {
       child: ListTile(
         dense: true,
         selected: active,
-        tileColor: focused ? scheme.secondaryContainer.withValues(alpha: 0.35) : null,
+        tileColor: focused ? T.cursor : null,
         onTap: onPick,
         leading: Icon(
           active ? Icons.radio_button_checked : Icons.radio_button_unchecked,
@@ -253,8 +254,7 @@ class _EditorRow extends StatelessWidget {
     return option.command.isEmpty ? 'not detected' : option.command;
   }
 
-  static TextStyle? _mono(BuildContext context) =>
-      Theme.of(context).textTheme.bodySmall?.copyWith(fontFamily: 'monospace');
+  static TextStyle? _mono(BuildContext context) => T.codeSmall;
 }
 
 class _CommandEditor extends StatelessWidget {
@@ -316,8 +316,7 @@ class _CommandField extends StatelessWidget {
     return TextField(
       controller: controller,
       onChanged: onChanged,
-      style: Theme.of(context).textTheme.bodyMedium
-          ?.copyWith(fontFamily: 'monospace'),
+      style: T.code,
       decoration: const InputDecoration(
         isDense: true,
         border: OutlineInputBorder(),
