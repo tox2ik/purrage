@@ -31,7 +31,10 @@ class CommitBar extends StatelessWidget {
             child: TextField(
               controller: controller,
               focusNode: focusNode,
-              enabled: changes.canCommit,
+              // Read-only, not disabled: disabling a focused field removes its
+              // accessibility node on Windows ("Failed to update ui::AXTree"),
+              // and the commit button already gates the action.
+              readOnly: !changes.canCommit,
               decoration: const InputDecoration(
                 isDense: true,
                 border: OutlineInputBorder(),
