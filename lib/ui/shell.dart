@@ -205,20 +205,48 @@ class ShellState extends State<Shell> {
   }
 
   /// `space` / `a`: stage the highlighted rows. The rows move to Staged at once;
-  /// a failure comes back as a notice and the list is put right again.
+  /// a failure comes back as a notice and the list is put right again. Either
+  /// way the console gets the command that ran.
   Future<void> trackSel() async {
     final problem = await changes.trackSelected();
-    if (mounted && problem != null) {
-      say(problem, failure: changes.lastFailure, action: 'track');
-    }
+    if (!mounted) return;
+    report('track', problem: problem);
   }
 
   /// `u`: stop tracking the highlighted rows, at once.
   Future<void> untrackSel() async {
     final problem = await changes.untrackSelected();
-    if (mounted && problem != null) {
-      say(problem, failure: changes.lastFailure, action: 'untrack');
+    if (!mounted) return;
+    report('untrack', problem: problem);
+  }
+
+  /// One place for the console: every add, untrack and ignore lands here, with
+  /// the command line and the working directory, whether it worked or not.
+  void report(String action, {String? problem}) {
+    if (problem != null) {
+      say(problem, failure: changes.lastFailure, action: action);
+      return;
     }
+    final verb = switch (action) {
+      'track' => 'tracked',
+      'untrack' => 'stopped tracking',
+      'ignore' => 'ignored',
+      _ => action,
+    };
+    final files = changes.lastChanged == 1 ? '1 file' : '${changes.lastChanged} files';
+    console.add(
+      ActionFailure.done(
+        summary: '$verb $files',
+        detail: [
+          'origin: ${changes.lastOrigin ?? '-'}',
+          'changed: ${changes.lastChanged}',
+          'cwd: ${widget.repo.path}',
+          if (changes.lastCommand != null) 'command: ${changes.lastCommand}',
+        ].join('\n'),
+        origin: changes.lastOrigin,
+      ),
+      action: action,
+    );
   }
 
   /// `e`: open the focused file in the chosen editor.
@@ -254,8 +282,8 @@ class ShellState extends State<Shell> {
     try {
       final problem = await changes.ignoreQuick();
       await reloadIgnorePane();
-      if (!mounted || problem == null) return;
-      say(problem, failure: changes.lastFailure, action: 'ignore');
+      if (!mounted) return;
+      report('ignore', problem: problem);
     } on Exception catch (error) {
       say(
         'ignore failed',
@@ -294,8 +322,8 @@ class ShellState extends State<Shell> {
         stopTracking: choice.stopTracking,
       );
       await reloadIgnorePane();
-      if (!mounted || problem == null) return;
-      say(problem, failure: changes.lastFailure, action: 'ignore');
+      if (!mounted) return;
+      report('ignore', problem: problem);
     } on Exception catch (error) {
       say(
         'ignore failed',
@@ -476,6 +504,8 @@ class ShellState extends State<Shell> {
             commitFocus: commitFocus,
             onIgnore: ignoreSelectedRow,
             onQuickIgnore: ignoreQuick,
+            onTrack: trackSel,
+            onUntrack: untrackSel,
             onOpen: openFocusedFile,
             filterController: filterController,
             filterFocus: filterFocus,

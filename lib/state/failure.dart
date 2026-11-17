@@ -12,6 +12,7 @@ class ActionFailure {
     required this.detail,
     this.code,
     this.origin,
+    this.error = true,
   });
 
   /// One line, for the notice bar and the console row.
@@ -25,6 +26,10 @@ class ActionFailure {
 
   /// `Changes.ignoreSelected → Repo.appendIgnoreLine` and so on.
   final String? origin;
+
+  /// False for a report of something that worked: the console keeps both, the
+  /// notice bar only shows the failures.
+  final bool error;
 
   /// Wrap an exception with the action it broke and how that action ran.
   factory ActionFailure.fromError(
@@ -79,6 +84,20 @@ class ActionFailure {
     ];
     return ActionFailure(summary: summary, detail: lines.join('\n'), origin: origin);
   }
+
+  /// A report of something that worked: the console keeps it, the notice bar
+  /// does not show it.
+  factory ActionFailure.done({
+    required String summary,
+    required String detail,
+    String? origin,
+  }) =>
+      ActionFailure(
+        summary: summary,
+        detail: detail,
+        origin: origin,
+        error: false,
+      );
 
   static String _firstLine(String text) {
     final line = text.split(RegExp(r'\r?\n')).firstWhere((line) => line.trim().isNotEmpty,

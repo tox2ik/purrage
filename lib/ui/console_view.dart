@@ -64,7 +64,7 @@ class _Header extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
       child: Row(
         children: [
-          Text('FAILURES  $count', style: Theme.of(context).textTheme.labelMedium),
+          Text('CONSOLE  $count', style: Theme.of(context).textTheme.labelMedium),
           const Spacer(),
           Tooltip(
             message: 'Clear the log',
@@ -170,7 +170,7 @@ class _Title extends StatelessWidget {
             failure.summary,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: mono,
+            style: mono.copyWith(color: failure.error ? scheme.error : null),
           ),
         ),
         Icon(

@@ -15,6 +15,8 @@ class FileList extends StatefulWidget {
     required this.changes,
     required this.onIgnore,
     required this.onQuickIgnore,
+    required this.onTrack,
+    required this.onUntrack,
     required this.onOpen,
     required this.filterController,
     required this.filterFocus,
@@ -23,6 +25,8 @@ class FileList extends StatefulWidget {
   final Changes changes;
   final VoidCallback onIgnore;
   final VoidCallback onQuickIgnore;
+  final VoidCallback onTrack;
+  final VoidCallback onUntrack;
   final VoidCallback onOpen;
   final TextEditingController filterController;
   final FocusNode filterFocus;
@@ -132,8 +136,14 @@ class _FileListState extends State<FileList> {
       focused: index == changes.index,
       chosen: changes.isSelected(row),
       onTap: (ctrl, shift) => changes.click(index, ctrl: ctrl, shift: shift),
-      onTrack: () => changes.trackSelected(),
-      onUntrack: () => changes.untrackSelected(),
+      onTrack: () {
+        if (!changes.isSelected(row)) changes.click(index);
+        widget.onTrack();
+      },
+      onUntrack: () {
+        if (!changes.isSelected(row)) changes.click(index);
+        widget.onUntrack();
+      },
       onIgnore: () {
         if (!changes.isSelected(row)) changes.click(index);
         widget.onIgnore();

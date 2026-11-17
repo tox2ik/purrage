@@ -55,6 +55,11 @@ class Changes extends ChangeNotifier {
   /// The last failure, with its origin, code and detail, for the Console mode.
   ActionFailure? lastFailure;
 
+  /// How the last action ran, for the console's success line.
+  String? lastCommand;
+  String? lastOrigin;
+  int lastChanged = 0;
+
   List<StatusRow> get selectedRows => [
         for (final row in _visible)
           if (isSelected(row)) row,
@@ -238,6 +243,10 @@ class Changes extends ChangeNotifier {
     _setRows(next);
 
     final pathList = usable.map((row) => row.path).toList();
+    lastOrigin = 'Changes.trackSelected -> Repo.track -> git add';
+    lastCommand = 'git add -- ${pathList.take(8).join(' ')}'
+        '${pathList.length > 8 ? ' ...(${pathList.length} paths)' : ''}';
+    lastChanged = pathList.length;
     try {
       await repo.track(pathList);
     } on Exception catch (error) {
@@ -264,6 +273,9 @@ class Changes extends ChangeNotifier {
     final paths = rows.map((row) => row.path).toSet();
     _setRows([for (final row in _rows) if (!paths.contains(row.path)) row]);
 
+    lastOrigin = 'Changes.untrackSelected -> Repo.untrack -> git rm --cached';
+    lastCommand = 'git rm --cached -- ${rows.take(8).map((row) => row.path).join(' ')}';
+    lastChanged = rows.length;
     try {
       for (final row in rows) {
         await repo.untrack(row.path);
@@ -287,6 +299,9 @@ class Changes extends ChangeNotifier {
   Future<bool> commit(String summary) async {
     final message = summary.trim();
     if (message.isEmpty || !canCommit) return false;
+    lastOrigin = 'Changes.commit -> Repo.commit -> git commit';
+    lastCommand = 'git commit -m ${message.replaceAll('\n', ' ')}';
+    lastChanged = stagedCount;
     await _run(
       () => repo.commit(message),
       origin: 'Changes.commit -> Repo.commit -> git commit',
@@ -427,6 +442,13 @@ class Changes extends ChangeNotifier {
     }
     await refresh();
     lastReport = ActionReport(done: added, skipped: skipped, note: _shortSource(target.path));
+    lastChanged = added;
+    lastOrigin = 'Changes.ignoreSelected -> IgnoreRules.pattern -> Repo.appendIgnoreLine';
+    lastCommand = plans
+        .map((plan) => '${_shortSource(plan.target.path)} += ${plan.pattern}')
+        .take(8)
+        .join('\n') +
+        (plans.length > 8 ? '\n...(${plans.length} rules)' : '');
     if (skipped.isEmpty) return null;
     final head = skipped.take(3).join('; ');
     final more = skipped.length > 3 ? ' (+${skipped.length - 3} more)' : '';
