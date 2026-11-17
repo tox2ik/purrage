@@ -24,6 +24,7 @@ class ChangesView extends StatelessWidget {
     required this.ignoreState,
     required this.onOpenIgnore,
     required this.onNewIgnore,
+    required this.onCommit,
   });
 
   final Changes changes;
@@ -39,6 +40,7 @@ class ChangesView extends StatelessWidget {
   final IgnorePaneState ignoreState;
   final VoidCallback onOpenIgnore;
   final VoidCallback onNewIgnore;
+  final Future<void> Function(String summary) onCommit;
 
   @override
   Widget build(BuildContext context) {
@@ -79,6 +81,7 @@ class ChangesView extends StatelessWidget {
             changes: changes,
             controller: commitController,
             focusNode: commitFocus,
+            onCommit: onCommit,
           ),
         ],
       ),

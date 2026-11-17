@@ -51,11 +51,11 @@ class ActionFailure {
       message = error.message;
       if (error.detail != null) lines.add(error.detail!);
     } else if (error is ProcessException) {
-      code = 'error ${error.errorCode}';
+      code = 'exit ${error.errorCode}';
       message = '${error.message} (${error.executable})';
     } else if (error is FileSystemException) {
       final os = error.osError;
-      code = os == null ? null : 'error ${os.errorCode}';
+      code = os == null ? null : 'errno ${os.errorCode}';
       message = '${os?.message ?? error.message} — ${error.path ?? ''}';
     }
     if (code != null) lines.add('code: $code');

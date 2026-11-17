@@ -81,13 +81,15 @@ class Repo implements GitRepo {
   Future<void> untrack(String path) async {
     try {
       await _git(['rm', '--cached', '--', path]);
-    } on GitException catch (error) {
+    } on Object catch (error) {
+      // The `git` package throws ProcessException, our own code throws
+      // GitException: match on the text, which is what actually says why.
+      final text = '$error'.toLowerCase();
+      final needsForce = text.contains('use -f') || text.contains('force removal');
+      if (!needsForce) rethrow;
       // A submodule or a nested repository: its staged content matches neither
       // HEAD nor the working tree, so git insists on -f. With --cached that only
-      // drops the index entry; the file or folder stays on disk. Git's wording is
-      // "use -f to force removal", sometimes with the force hint on its own line.
-      final text = '${error.message} ${error.detail ?? ''}'.toLowerCase();
-      if (!text.contains('use -f') && !text.contains('force removal')) rethrow;
+      // drops the index entry; the file or folder stays on disk.
       await _git(['rm', '--cached', '-f', '--', path]);
     }
   }

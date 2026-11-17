@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../state/changes.dart';
 import '../state/console.dart';
+import '../state/diagnostics.dart';
 import '../state/editors.dart';
 import '../state/failure.dart';
 import '../state/git_repo.dart';
@@ -40,12 +41,15 @@ extension on Mode {
 
 /// The window shell: the mode rail, the shown mode, and every app-wide key.
 class Shell extends StatefulWidget {
-  const Shell({super.key, required this.repo, this.seeded});
+  const Shell({super.key, required this.repo, this.seeded, this.console});
 
   final GitRepo repo;
 
   /// A prepared state, for tests: the fake repo path never touches git.
   final Changes? seeded;
+
+  /// The app-wide console, shared with the error handlers; tests may omit it.
+  final ConsoleLog? console;
 
   @override
   State<Shell> createState() => ShellState();
@@ -62,7 +66,7 @@ class ShellState extends State<Shell> {
   late final Editors editors = Editors(prefs: prefs);
   late final IgnorePaneState ignorePane = IgnorePaneState(widget.repo);
   final Notices notices = Notices();
-  final ConsoleLog console = ConsoleLog();
+  late final ConsoleLog console = widget.console ?? ConsoleLog();
   /// The ignore pane's highlight asks git, so it waits for the cursor to settle.
   Timer? ignoreProbe;
   String? editorCommand;
@@ -84,7 +88,7 @@ class ShellState extends State<Shell> {
     ignoreProbe?.cancel();
     ignorePane.dispose();
     notices.dispose();
-    console.dispose();
+    if (widget.console == null) console.dispose();
     changes.dispose();
     commitController.dispose();
     commitFocus.dispose();
@@ -204,20 +208,51 @@ class ShellState extends State<Shell> {
     return KeyEventResult.handled;
   }
 
+  /// The Commit button: one summary line, reported like every other action.
+  Future<void> commitNow(String summary) async {
+    Diagnostics.enter('Changes: commit');
+    try {
+      final ok = await changes.commit(summary);
+      if (!mounted) return;
+      if (ok) {
+        commitController.clear();
+        report('commit');
+      } else {
+        say(
+          changes.error ?? 'commit failed',
+          failure: changes.lastFailure,
+          action: 'commit',
+        );
+      }
+    } finally {
+      Diagnostics.leave();
+    }
+  }
+
   /// `space` / `a`: stage the highlighted rows. The rows move to Staged at once;
   /// a failure comes back as a notice and the list is put right again. Either
   /// way the console gets the command that ran.
   Future<void> trackSel() async {
-    final problem = await changes.trackSelected();
-    if (!mounted) return;
-    report('track', problem: problem);
+    Diagnostics.enter('Changes: track (${changes.selectionCount} selected)');
+    try {
+      final problem = await changes.trackSelected();
+      if (!mounted) return;
+      report('track', problem: problem);
+    } finally {
+      Diagnostics.leave();
+    }
   }
 
   /// `u`: stop tracking the highlighted rows, at once.
   Future<void> untrackSel() async {
-    final problem = await changes.untrackSelected();
-    if (!mounted) return;
-    report('untrack', problem: problem);
+    Diagnostics.enter('Changes: untrack (${changes.selectionCount} selected)');
+    try {
+      final problem = await changes.untrackSelected();
+      if (!mounted) return;
+      report('untrack', problem: problem);
+    } finally {
+      Diagnostics.leave();
+    }
   }
 
   /// One place for the console: every add, untrack and ignore lands here, with
@@ -279,6 +314,7 @@ class ShellState extends State<Shell> {
   /// .gitignore. The rows leaving the list is the feedback; only a refusal or a
   /// failure is said out loud.
   Future<void> ignoreQuick() async {
+    Diagnostics.enter('Changes: ignore, literal path (${changes.selectionCount} selected)');
     try {
       final problem = await changes.ignoreQuick();
       await reloadIgnorePane();
@@ -294,6 +330,8 @@ class ShellState extends State<Shell> {
         ),
         action: 'ignore',
       );
+    } finally {
+      Diagnostics.leave();
     }
   }
 
@@ -307,6 +345,7 @@ class ShellState extends State<Shell> {
       say('nothing selected to ignore');
       return;
     }
+    Diagnostics.enter('Changes: ignore dialog for ${row.path}');
     try {
       final targets = await changes.ignoreTargets();
       if (!mounted) return;
@@ -334,6 +373,8 @@ class ShellState extends State<Shell> {
         ),
         action: 'ignore',
       );
+    } finally {
+      Diagnostics.leave();
     }
   }
 
@@ -512,6 +553,7 @@ class ShellState extends State<Shell> {
             ignoreState: ignorePane,
             onOpenIgnore: openSelectedIgnore,
             onNewIgnore: newIgnoreHere,
+            onCommit: commitNow,
           ),
           SettingsView(
             detect: editors.detect,
