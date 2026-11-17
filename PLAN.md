@@ -145,7 +145,8 @@ The ignore pane becomes a list of `.gitignore` files, not one file:
   `C:/Program Files (x86)`, `C:/ProgramData`, `C:/$Recycle.Bin`, `C:/System Volume Information`,
   `C:/Recovery`, `C:/PerfLogs` (matched as path prefixes), plus the name-based skip set
   (`node_modules`, `build`, `.dart_tool`, `target`, `dist`, `obj`, `bin`, `out`, `vendor`, caches,
-  …).
+  …). A path with a `.git` segment is never walked, in any casing: objects and refs are not a
+  checkout and are expensive to enumerate.
 - `AppData` is **not** skipped: it is entered and walked only **two levels in**
   (`AppData/Local/<one more>`), since a stray checkout can live there but the per-application cache
   trees below hold none. The scan report counts how many `AppData` folders it met.
