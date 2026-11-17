@@ -50,3 +50,4 @@ app.*.map.json
 # app output
 /out/
 
+/purrage.exe
