@@ -18,6 +18,7 @@ class FileList extends StatefulWidget {
     required this.onTrack,
     required this.onUntrack,
     required this.onOpen,
+    required this.onReload,
     required this.filterController,
     required this.filterFocus,
   });
@@ -28,6 +29,7 @@ class FileList extends StatefulWidget {
   final VoidCallback onTrack;
   final VoidCallback onUntrack;
   final VoidCallback onOpen;
+  final VoidCallback onReload;
   final TextEditingController filterController;
   final FocusNode filterFocus;
 
@@ -72,15 +74,18 @@ class _FileListState extends State<FileList> {
   @override
   Widget build(BuildContext context) {
     final changes = widget.changes;
-    final filter = FilterField(
-      controller: widget.filterController,
-      focusNode: widget.filterFocus,
-      onChanged: changes.setFilter,
+    final header = _Header(
+      filter: FilterField(
+        controller: widget.filterController,
+        focusNode: widget.filterFocus,
+        onChanged: changes.setFilter,
+      ),
+      onReload: widget.onReload,
     );
     if (changes.rows.isEmpty) {
       return Column(
         children: [
-          filter,
+          header,
           const Expanded(
             child: Center(child: Text('Nothing to commit, working tree clean.')),
           ),
@@ -90,7 +95,7 @@ class _FileListState extends State<FileList> {
     if (changes.visible.isEmpty) {
       return Column(
         children: [
-          filter,
+          header,
           Expanded(child: Center(child: Text('No path matches "${changes.filter}".'))),
         ],
       );
@@ -109,7 +114,7 @@ class _FileListState extends State<FileList> {
     }
     return Column(
       children: [
-        filter,
+        header,
         Expanded(
           child: Listener(
             onPointerSignal: _wheel,
@@ -407,9 +412,44 @@ class _TextAction extends StatelessWidget {
   }
 }
 
+/// The top of the list pane: the filter field, and a reload button that does what
+/// F5 does. The button lives right after the field, in the same strip.
+class _Header extends StatelessWidget {
+  const _Header({required this.filter, required this.onReload});
+
+  final Widget filter;
+  final VoidCallback onReload;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        Expanded(child: filter),
+        Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: Tooltip(
+            message: 'Re-read the state (F5)',
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: IconButton(
+                icon: const Icon(Icons.refresh, size: 16),
+                color: scheme.onSurfaceVariant,
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints.tightFor(width: 28, height: 28),
+                onPressed: onReload,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// One row in the flat list the builder walks.
-class RowEntry {
-  const RowEntry({required this.row, required this.index});
+class RowEntry {  const RowEntry({required this.row, required this.index});
 
   final StatusRow row;
   final int index;

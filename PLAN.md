@@ -147,6 +147,8 @@ The ignore pane becomes a list of `.gitignore` files, not one file:
 - Every row carries two text actions between the folder and the name: **Add** (or **Untrack** when
   staged) and **Ignore**, each with the pointer cursor and a tooltip. A conflict shows only Ignore.
   The slot has a fixed width, so the file names stay aligned across rows.
+- The list's top strip is the filter field with a **reload** button right after it; the button does
+  exactly what `F5` does (re-read the state and the ignore files).
 
 ## Editor detection and Settings
 

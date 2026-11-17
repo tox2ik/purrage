@@ -548,6 +548,7 @@ class ShellState extends State<Shell> {
             onTrack: trackSel,
             onUntrack: untrackSel,
             onOpen: openFocusedFile,
+            onReload: reloadAll,
             filterController: filterController,
             filterFocus: filterFocus,
             ignoreState: ignorePane,
