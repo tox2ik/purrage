@@ -503,7 +503,13 @@ class Changes extends ChangeNotifier {
       // action runs git now, so the repository's last command is its own.
       final command = repo.lastCommand ?? planned;
       await _settle();
-      return ActionResult.done('untrack', origin: origin, command: command, changed: rows.length);
+      return ActionResult.done(
+        'untrack',
+        origin: origin,
+        command: command,
+        changed: rows.length,
+        paths: [for (final row in rows) row.path],
+      );
     });
   }
 
@@ -578,22 +584,43 @@ class Changes extends ChangeNotifier {
   }) =>
       IgnoreRules.pattern(scope: scope, targetDir: target.dir, path: path);
 
-  /// The rules the dialog is about to write, one line per row it will act on.
-  List<String> ignorePreviews({
+  /// The rules the dialog is about to write: each distinct rule once, however
+  /// many rows it covers (three `.log` files with the extension scope are one
+  /// `*.log`), and the rows the scope makes no rule for.
+  IgnorePreview ignorePreview({
     required IgnoreScope scope,
     required IgnoreTarget target,
   }) {
-    final lines = <String>[];
+    final rules = <String>[];
+    final seen = <String>{};
+    final missing = <String>[];
+    var files = 0;
     for (final row in actionRows) {
-      final pattern = IgnoreRules.pattern(
-        scope: scope,
-        targetDir: _targetFor(row, target).dir,
-        path: row.path,
-      );
-      lines.add(pattern ?? '${row.name}: no rule for this scope');
+      final rowTarget = _targetFor(row, target);
+      final pattern = IgnoreRules.pattern(scope: scope, targetDir: rowTarget.dir, path: row.path);
+      if (pattern == null) {
+        missing.add(row.name);
+        continue;
+      }
+      files++;
+      // A folder target gives each row its own file, so the file is part of the rule.
+      final line = rowTarget == target ? pattern : '${_shortSource(rowTarget.path)}: $pattern';
+      if (seen.add(line)) rules.add(line);
     }
-    return lines;
+    return IgnorePreview(rules: rules, files: files, missing: missing);
   }
+
+  /// The highlighted rows git already ignores, with the rule that does it, so
+  /// the dialog can say so before the click instead of refusing after it. One
+  /// `check-ignore` for all of them.
+  Future<Map<String, IgnoreMatch>> alreadyIgnored() async {
+    final rows = actionRows;
+    if (rows.isEmpty) return const {};
+    return repo.checkIgnoreAll(rows.map((row) => row.path));
+  }
+
+  /// `.gitignore:3` for a match, relative to the repository when it is inside.
+  String matchPlace(IgnoreMatch match) => '${_shortSource(match.source)}:${match.line}';
 
   /// A rule for a folder file follows the row's own folder when several rows are
   /// being ignored together.
@@ -627,23 +654,20 @@ class Changes extends ChangeNotifier {
 
   /// Write an ignore rule for every highlighted row, removing them at once.
   ///
-  /// The result is a success when every rule was written, or a failure whose
-  /// summary names what was skipped and why. Rows whose rule failed come back.
+  /// It writes the rule and nothing else: a tracked file stays tracked (and in
+  /// the list), and untracking it is its own action (`u`). The result is a
+  /// success when every rule was written, or a failure whose summary names what
+  /// was skipped and why. Rows whose rule failed come back.
   Future<ActionResult> ignoreSelected({
     required IgnoreScope scope,
     required IgnoreTarget target,
-    bool stopTracking = false,
   }) =>
-      _timed(
-        'changes.ignore',
-        (span) => _ignore(span, scope: scope, target: target, stopTracking: stopTracking),
-      );
+      _timed('changes.ignore', (span) => _ignore(span, scope: scope, target: target));
 
   Future<ActionResult> _ignore(
     Span span, {
     required IgnoreScope scope,
     required IgnoreTarget target,
-    required bool stopTracking,
   }) async {
     const origin = 'Changes.ignoreSelected -> IgnoreRules.pattern -> Repo.appendIgnoreLines';
     final rows = actionRows;
@@ -668,21 +692,29 @@ class Changes extends ChangeNotifier {
         ? const <String, IgnoreMatch>{}
         : await repo.checkIgnoreAll(candidates.map((plan) => plan.row.path));
     final plans = <_IgnorePlan>[];
+    // Rows that share a rule (three `.log` files, extension scope) write it
+    // once and count as done with it, instead of "already there".
+    final sharing = <String, List<StatusRow>>{};
     for (final plan in candidates) {
       final match = existing[plan.row.path];
-      if (match == null) {
-        plans.add(plan);
+      if (match != null) {
+        final where = '${_shortSource(match.source)}:${match.line}';
+        skipped.add('${plan.row.path}: `${match.pattern}` in $where');
         continue;
       }
-      final where = '${_shortSource(match.source)}:${match.line}';
-      skipped.add('${plan.row.path}: `${match.pattern}` in $where');
+      final others = sharing[plan.key];
+      if (others != null) {
+        others.add(plan.row);
+        continue;
+      }
+      sharing[plan.key] = [];
+      plans.add(plan);
     }
     span.mark('check');
 
     Map<String, Object?> params(int written) => {
           'scope': scope.name,
           'target': _shortSource(target.path),
-          'stopTracking': stopTracking,
           'rows': rows.length,
           'written': written,
         };
@@ -702,8 +734,14 @@ class Changes extends ChangeNotifier {
       );
     }
 
-    // They leave the list now; git gets the files written right after.
-    final paths = plans.map((plan) => plan.row.path).toSet();
+    // Untracked rows leave the list now; git gets the files written right
+    // after. A tracked row stays: a rule does not apply to a file git tracks.
+    List<StatusRow> covered(_IgnorePlan plan) => [plan.row, ...sharing[plan.key]!];
+    final paths = {
+      for (final plan in plans)
+        for (final row in covered(plan))
+          if (row.section == Section.untracked) row.path,
+    };
     _apply(_RowChange(removed: [for (final row in _rows) if (paths.contains(row.path)) row]));
     _shown(span);
 
@@ -713,14 +751,16 @@ class Changes extends ChangeNotifier {
             .join('\n') +
         (plans.length > 8 ? '\n...(${plans.length} rules)' : '');
     return _enqueue(() async {
-      final written = await _writeRules(plans, skipped);
-      final done = {...written};
-      if (stopTracking) done.removeAll(await _untrackIgnored(written, skipped));
-      // Rows whose rule was not written (or that are still tracked) come back,
-      // and only they.
-      final back = [for (final plan in plans) if (!done.contains(plan)) plan.row];
+      final done = (await _writeRules(plans, skipped)).toSet();
+      // Rows whose rule was not written come back, and only they.
+      final back = [
+        for (final plan in plans)
+          if (!done.contains(plan))
+            for (final row in covered(plan))
+              if (paths.contains(row.path)) row,
+      ];
       if (back.isNotEmpty) _undo(_RowChange(removed: back));
-      final added = done.length;
+      final added = done.fold(0, (sum, plan) => sum + covered(plan).length);
       span.mark('git');
       await _settle();
       if (skipped.isEmpty) {
@@ -769,24 +809,6 @@ class Changes extends ChangeNotifier {
       }
     }
     return written;
-  }
-
-  /// "Stop tracking" in the ignore dialog: one `git rm --cached` for the tracked
-  /// rows whose rule was written. Returns the plans that are still tracked.
-  Future<List<_IgnorePlan>> _untrackIgnored(List<_IgnorePlan> written, List<String> skipped) async {
-    final tracked = [
-      for (final plan in written)
-        if (plan.row.section != Section.untracked) plan,
-    ];
-    if (tracked.isEmpty) return const [];
-    try {
-      await repo.untrack(tracked.map((plan) => plan.row.path));
-      return const [];
-    } on Exception catch (error) {
-      final reason = error is GitException ? error.message : '$error';
-      skipped.addAll(tracked.map((plan) => '${plan.row.path}: rule written, still tracked ($reason)'));
-      return tracked;
-    }
   }
 
   /// Replace the list with [rows], keeping the filter, the cursor and the
@@ -902,6 +924,33 @@ class _IgnorePlan {
   final StatusRow row;
   final IgnoreTarget target;
   final String pattern;
+
+  /// The file and the rule: two plans with the same key write the same line.
+  String get key => '${target.path}\u0000$pattern';
+}
+
+/// What the ignore dialog shows before anything is written.
+class IgnorePreview {
+  const IgnorePreview({required this.rules, required this.files, this.missing = const []});
+
+  /// Each distinct rule once.
+  final List<String> rules;
+
+  /// How many rows those rules cover.
+  final int files;
+
+  /// Names of the rows the scope makes no rule for.
+  final List<String> missing;
+
+  /// Nothing would be written.
+  bool get blocked => rules.isEmpty;
+
+  /// `3 files → 1 rule`.
+  String get summary {
+    final fileWord = files == 1 ? '1 file' : '$files files';
+    final ruleWord = rules.length == 1 ? '1 rule' : '${rules.length} rules';
+    return '$fileWord → $ruleWord';
+  }
 }
 
 /// One action's optimistic change to the list: the rows it took out and the
@@ -949,15 +998,18 @@ class ActionResult {
     this.origin,
     this.command,
     this.changed = 0,
+    this.paths = const [],
   });
 
-  /// It worked: [changed] rows, by [command].
+  /// It worked: [changed] rows, by [command]; [paths] names them when the
+  /// action says them on screen (untrack's grouped notice).
   const ActionResult.done(
     String action, {
     required String origin,
     String? command,
     required int changed,
-  }) : this._(action: action, origin: origin, command: command, changed: changed);
+    List<String> paths = const [],
+  }) : this._(action: action, origin: origin, command: command, changed: changed, paths: paths);
 
   /// It failed, or was refused, with the full story in [failure].
   ActionResult.failed(String action, ActionFailure failure, {String? command, int changed = 0})
@@ -989,6 +1041,7 @@ class ActionResult {
   final String? origin;
   final String? command;
   final int changed;
+  final List<String> paths;
 
   bool get ok => failure == null;
 

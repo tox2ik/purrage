@@ -71,7 +71,10 @@ and the code disagree, fix one of them deliberately.
 - **Ignore** (`i`, row menu): scope submenu — *this file* (`/path/to/file`), *this extension*
   (`*.ext`), *this folder* (`/path/to/folder/`) — and a *where* submenu: the repo root
   `.gitignore` (default), **a new `.gitignore` in the file's own folder**, `.git/info/exclude`,
-  or the global ignore file.
+  or the global ignore file. `i` writes the literal path to the root file at once; `Shift+I` opens
+  the dialog, which is complete by keys: `1`/`2`/`3` (or `f`/`x`/`d`) for the scope, `j`/`k` through
+  the targets, `Enter` writes, `Esc` cancels. Its preview lists each rule once (`3 files → 1
+  rule`) and names the rows git already ignores, with the rule and line, before the click.
   Ignoring a file git already tracks writes the rule and nothing else; untracking it is `u`.
 - Ignore writes are literal and anchored, escape glob characters (`*?[]!`) in names, and skip a
   pattern already present anywhere in the file. The app's rules live in a **`# Purrage`
@@ -180,7 +183,9 @@ The ignore pane becomes a list of `.gitignore` files, not one file:
 
 - A failure shows a bar above the commit strip whose countdown **pauses while the mouse is over
   it** and resumes with the time that was left. It can be dismissed with its close button.
-- Successes are silent on screen: the row moving between sections is the feedback.
+- Successes are silent on screen: the row moving between sections is the feedback. The one
+  exception is untrack, whose row leaves the list: untracks within 900 ms share one notice (not in
+  the error colours) that names every file and says they are kept on disk.
 
 ## Keys (the Ops contract)
 

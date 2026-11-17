@@ -1,7 +1,7 @@
 ---
 id: task-12
 title: 'Ignore dialog from the keyboard, and three discrete actions'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-17'
 labels:
@@ -48,10 +48,34 @@ priority: medium
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 the ignore dialog can be completed with keys only (widget test)
-- [ ] #2 targets have an explicit pointer cursor and a tooltip
-- [ ] #3 previews are deduplicated and show already-ignored rows
-- [ ] #4 the ignore dialog has no "stop tracking" checkbox, and `ignoreSelected` never untracks
-- [ ] #5 untrack shows no dialog; several untracks within 900 ms give one notice naming every file (fake-clock test), and each adds a console row
-- [ ] #6 PLAN.md and the code agree: three discrete actions, no confirm, no "Ignore + stop tracking"
+- [x] #1 the ignore dialog can be completed with keys only (widget test)
+- [x] #2 targets have an explicit pointer cursor and a tooltip
+- [x] #3 previews are deduplicated and show already-ignored rows
+- [x] #4 the ignore dialog has no "stop tracking" checkbox, and `ignoreSelected` never untracks
+- [x] #5 untrack shows no dialog; several untracks within 900 ms give one notice naming every file (fake-clock test), and each adds a console row
+- [x] #6 PLAN.md and the code agree: three discrete actions, no confirm, no "Ignore + stop tracking"
 <!-- AC:END -->
+
+## Notes
+
+- Dialog (`lib/ui/ignore_dialog.dart`): a `KeyScope` over `motionBindings` and the new
+  `ignoreDialogBindings` (`app_keys.dart`, so Help lists them): `ScopeIntent` for `1`/`2`/`3`
+  and `f`/`x`/`d`, `MoveIntent` for the targets, `ActivateIntent` (Enter), `DismissIntent`
+  (Esc), each calling one named method. Targets are `HoverRow`s, scope chips are in `Clickable`,
+  the buttons are `SmallButton`s: pointer cursor and tooltip from `widgets.dart`.
+- Preview: `Changes.ignorePreview` returns each distinct rule once and `3 files → 1 rule`;
+  `Changes.alreadyIgnored` is one `checkIgnoreAll` when the dialog opens.
+- Joined onto A+B: "stop tracking" is gone from B's batched ignore path too
+  (`_untrackIgnored` removed; the test that expected one untrack call now expects none). The
+  grouped notice lives in `Workspace` (`untrackNotice`, fed from `report` with the new
+  `ActionResult.paths`).
+- Found on the way: with several rows and one shared rule, `ignoreSelected` wrote the rule once
+  and then reported the other rows as skipped ("already there"). Rows that share a rule now
+  share one write and count as done.
+- Ignoring a tracked row no longer removes it from the list optimistically (git keeps listing
+  it, so it used to vanish and come back); `FakeRepo.appendIgnoreLine` now behaves like git there.
+- Untrack: `NoticeGroup` (`lib/state/notice_group.dart`) collects the files; each `u` restarts
+  the 900 ms window, and the notice (`stopped tracking a.txt, b.txt (kept on disk)`) uses the
+  secondary colours, not the error ones (`Notice.failure`). Console rows are unchanged, one per
+  untrack. Widget tests on the fake clock: grouped within 900 ms, separate after it.
+- `1 2 3 / f x d` is in Help through `ignoreDialogBindings`.

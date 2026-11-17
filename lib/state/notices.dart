@@ -4,9 +4,13 @@ import 'package:flutter/foundation.dart';
 
 /// One message in the notice bar.
 class Notice {
-  const Notice(this.message);
+  const Notice(this.message, {this.failure = true});
 
   final String message;
+
+  /// A failure is drawn in the error colours; the one success that speaks (the
+  /// grouped untrack notice) is not.
+  final bool failure;
 }
 
 /// A single notice shown by the UI, which goes away on its own unless the mouse
@@ -31,8 +35,8 @@ class Notices extends ChangeNotifier {
 
   bool get hovered => _hovered;
 
-  void show(String message) {
-    _current = Notice(message);
+  void show(String message, {bool failure = true}) {
+    _current = Notice(message, failure: failure);
     _remaining = lifetime;
     _hovered = false;
     _startTimer();

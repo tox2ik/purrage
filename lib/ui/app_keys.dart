@@ -259,6 +259,28 @@ const List<Binding> settingsBindings = [
       activators: [SingleActivator(LogicalKeyboardKey.enter)], intent: ActivateIntent()),
 ];
 
+/// The ignore dialog's scope keys: [index] into `IgnoreScope.values`.
+class ScopeIntent extends Intent {
+  const ScopeIntent(this.index);
+  final int index;
+}
+
+/// Keys of the ignore dialog (`Shift+I`): it can be completed without a mouse.
+/// `j` / `k` and the arrows move through the targets ([motionBindings]).
+const List<Binding> ignoreDialogBindings = [
+  Binding('1 2 3 / f x d', 'scope: this file, this extension, this folder', activators: [
+    CharacterActivator('1'),
+    CharacterActivator('f'),
+  ], intent: ScopeIntent(0)),
+  Binding('', '', activators: [CharacterActivator('2'), CharacterActivator('x')], intent: ScopeIntent(1)),
+  Binding('', '', activators: [CharacterActivator('3'), CharacterActivator('d')], intent: ScopeIntent(2)),
+  Binding('j k Up Down', 'where the rule goes'),
+  Binding('Enter', 'write the rule',
+      activators: [SingleActivator(LogicalKeyboardKey.enter)], intent: ActivateIntent()),
+  Binding('Esc', 'close without writing',
+      activators: [SingleActivator(LogicalKeyboardKey.escape)], intent: DismissIntent()),
+];
+
 /// Plain keys that work in every mode, unless a text field has focus.
 const List<Binding> plainBindings = [
   Binding('?', 'this list', activators: [CharacterActivator('?')], intent: ShowModeIntent(Mode.help)),
@@ -273,6 +295,7 @@ final List<(String, List<Binding>)> helpGroups = [
   ('Browse', browseBindings),
   ('Console', consoleBindings),
   ('Settings', settingsBindings),
+  ('Ignore dialog', ignoreDialogBindings),
 ];
 
 /// Every binding, in the order Help lists them.

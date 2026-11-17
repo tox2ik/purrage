@@ -103,7 +103,8 @@ operator (`& "$(FLUTTER)" …`) because a quoted `.bat` path is not a command in
 - `Shell.say()` shows a notice **and** adds a console row; `Shell.report()` adds a console row for
   successes. Both go through `ActionFailure`, so the notice and the console never disagree.
 - The notice bar (`lib/state/notices.dart`, `lib/ui/notice_bar.dart`) pauses its countdown while
-  the mouse is over it. Successes say nothing on screen; failures always speak, with the file and
+  the mouse is over it. Successes say nothing on screen (except untrack: one grouped notice for
+  the untracks within 900 ms, `NoticeGroup`); failures always speak, with the file and
   the reason.
 - The Console mode (`Alt+4`) is newest-first: time, code badge, action, summary, and an expandable
   detail with the origin chain, parameters, `cwd` and the command line.

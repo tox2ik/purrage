@@ -25,7 +25,11 @@ class NoticeBar extends StatelessWidget {
                   key: const ValueKey('notice'),
                   onEnter: (_) => notices.setHovered(true),
                   onExit: (_) => notices.setHovered(false),
-                  child: _NoticeCard(message: notice.message, onDismiss: notices.dismiss),
+                  child: _NoticeCard(
+                    message: notice.message,
+                    failure: notice.failure,
+                    onDismiss: notices.dismiss,
+                  ),
                 ),
         );
       },
@@ -33,21 +37,24 @@ class NoticeBar extends StatelessWidget {
   }
 }
 
-/// The card itself: the message, selectable, and the close button.
+/// The card itself: the message, selectable, and the close button. A failure
+/// is in the error colours; the grouped untrack notice is not.
 class _NoticeCard extends StatelessWidget {
-  const _NoticeCard({required this.message, required this.onDismiss});
+  const _NoticeCard({required this.message, required this.failure, required this.onDismiss});
 
   final String message;
+  final bool failure;
   final VoidCallback onDismiss;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final text = failure ? scheme.onErrorContainer : scheme.onSecondaryContainer;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Material(
         elevation: 6,
-        color: scheme.errorContainer,
+        color: failure ? scheme.errorContainer : scheme.secondaryContainer,
         borderRadius: BorderRadius.circular(T.radius),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(14, 6, 6, 6),
@@ -55,7 +62,7 @@ class _NoticeCard extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Flexible(
-                child: SelectableText(message, style: TextStyle(color: scheme.onErrorContainer)),
+                child: SelectableText(message, style: TextStyle(color: text)),
               ),
               const SizedBox(width: 8),
               IconAction(icon: Icons.close, tooltip: 'Dismiss', onPressed: onDismiss),

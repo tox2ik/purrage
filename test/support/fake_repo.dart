@@ -143,7 +143,8 @@ class FakeRepo implements GitRepo {
   }
 
   /// Write every rule (no duplicate check here: the real file does that) and
-  /// drop the rows a literal rule names.
+  /// drop the untracked rows a literal rule names (like git, a rule never hides
+  /// a tracked file).
   void _append(String absolutePath, List<String> patterns) {
     for (final pattern in patterns) {
       writes.add('$absolutePath|$pattern');
@@ -152,7 +153,7 @@ class FakeRepo implements GitRepo {
     final gone = patterns.toSet();
     rows = [
       for (final row in rows)
-        if (!gone.contains('/${row.path}')) row,
+        if (!gone.contains('/${row.path}') || row.section != Section.untracked) row,
     ];
   }
 

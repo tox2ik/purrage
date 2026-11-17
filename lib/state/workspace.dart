@@ -18,6 +18,7 @@ import 'failure.dart';
 import 'git_repo.dart';
 import 'ignore_files.dart';
 import 'ignore_rules.dart';
+import 'notice_group.dart';
 import 'notices.dart';
 import 'prefs.dart';
 import 'status.dart';
@@ -131,6 +132,7 @@ class Workspace extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _probe?.cancel();
+    untrackNotice.dispose();
     _changes.cursor.removeListener(_cursorMoved);
     _changes.dispose();
     _ignorePane.dispose();
@@ -180,6 +182,7 @@ class Workspace extends ChangeNotifier {
       'commit' => 'committed',
       _ => action,
     };
+    if (action == 'untrack') untrackNotice.add(result.paths);
     final changed = result.changed;
     final files = changed == 1 ? '1 file' : '$changed files';
     console.add(
@@ -195,6 +198,17 @@ class Workspace extends ChangeNotifier {
       ),
       action: action,
     );
+  }
+
+  /// Untracks within 900 ms of each other share one notice naming every file;
+  /// each still has its own console row ([report]).
+  late final NoticeGroup untrackNotice = NoticeGroup(onClose: sayUntracked);
+
+  /// The one success that speaks on screen: the untracked rows leave the list,
+  /// so the notice says where they went (nowhere: still on disk).
+  void sayUntracked(List<String> files) {
+    if (_disposed) return;
+    notices.show('stopped tracking ${files.join(', ')} (kept on disk)', failure: false);
   }
 
   /// Every scan writes one console row with its cost and its worst listings.
@@ -359,18 +373,10 @@ class Workspace extends ChangeNotifier {
     }
   }
 
-  /// Shift+I, step two: write what the dialog chose.
-  Future<void> ignore({
-    required IgnoreScope scope,
-    required IgnoreTarget target,
-    bool stopTracking = false,
-  }) =>
+  /// Shift+I, step two: write what the dialog chose, and nothing else.
+  Future<void> ignore({required IgnoreScope scope, required IgnoreTarget target}) =>
       _act('ignore', () async {
-        final result = await _changes.ignoreSelected(
-          scope: scope,
-          target: target,
-          stopTracking: stopTracking,
-        );
+        final result = await _changes.ignoreSelected(scope: scope, target: target);
         await reloadIgnorePane();
         return result;
       });

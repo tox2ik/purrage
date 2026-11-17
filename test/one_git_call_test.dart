@@ -93,7 +93,7 @@ void main() {
     expect(repo.files.keys, unorderedEquals(['C:/repo/one/.gitignore', 'C:/repo/two/.gitignore']));
   });
 
-  test('ignore with stop tracking untracks the tracked rows in one call', () async {
+  test('ignoring tracked rows writes their rules and untracks nothing', () async {
     final repo = FakeRepo([
       for (var i = 0; i < 4; i++) row('t$i.cfg', Section.staged),
       row('u.cfg', Section.untracked),
@@ -101,13 +101,23 @@ void main() {
     final changes = await loaded(repo);
     await selectAll(changes);
 
-    await changes.ignoreSelected(
-      scope: IgnoreScope.file,
-      target: changes.rootTarget,
-      stopTracking: true,
-    );
-    expect(repo.count('untrack'), 1);
-    expect(repo.lastCommand, isNot(contains('u.cfg')));
+    final result = await changes.ignoreSelected(scope: IgnoreScope.file, target: changes.rootTarget);
+    expect(result.ok, isTrue);
+    expect(repo.count('untrack'), 0);
+    expect(repo.writes, hasLength(5));
+    // The tracked rows stay in the list; only the untracked one leaves.
+    expect(changes.visible.map((r) => r.path), ['t0.cfg', 't1.cfg', 't2.cfg', 't3.cfg']);
+  });
+
+  test('rows that share one rule write it once and all count as ignored', () async {
+    final repo = FakeRepo([for (final name in ['a.log', 'b.log', 'c.log']) row(name, Section.untracked)]);
+    final changes = await loaded(repo);
+    await selectAll(changes);
+
+    final result = await changes.ignoreSelected(scope: IgnoreScope.extension, target: changes.rootTarget);
+    expect(result.ok, isTrue, reason: result.problem);
+    expect(result.changed, 3);
+    expect(repo.writes, ['C:/repo/.gitignore|*.log']);
   });
 
   test('a row whose rule cannot be written comes back, the others stay gone', () async {

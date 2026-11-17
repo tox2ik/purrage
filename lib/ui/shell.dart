@@ -168,11 +168,7 @@ class ShellState extends State<Shell> {
       targets: question.targets,
     );
     if (choice == null || !mounted) return;
-    await workspace.ignore(
-      scope: choice.scope,
-      target: choice.target,
-      stopTracking: choice.stopTracking,
-    );
+    await workspace.ignore(scope: choice.scope, target: choice.target);
   }
 
   /// The Commit button: the field empties when the commit was made.

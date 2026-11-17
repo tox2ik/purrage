@@ -133,7 +133,7 @@ void main() {
     expect(await changed(temp), contains('keep.txt'));
   });
 
-  test('stop tracking makes the ignored file disappear from status', () async {
+  test('ignoring a tracked file writes the rule and nothing else', () async {
     final temp = await TempRepo.make();
     await temp.write('junk.bin', 'x\n');
     final repo = await Repo.open(temp.path);
@@ -144,20 +144,16 @@ void main() {
     final changes = watch(Changes(repo));
     await changes.load();
     final root = changes.rootTarget;
-    expect(
-      (await changes.ignoreSelected(scope: IgnoreScope.file, target: root, stopTracking: true))
-          .problem,
-      isNull,
-    );
+    expect((await changes.ignoreSelected(scope: IgnoreScope.file, target: root)).problem, isNull);
 
+    // Still tracked, still changed, still on disk: untracking is `u`, not this.
     final tracked = await temp.git(['ls-files', '--', 'junk.bin']);
-    expect((tracked.stdout as String).trim(), isEmpty);
+    expect((tracked.stdout as String).trim(), 'junk.bin');
     expect(await File('${temp.path}/junk.bin').exists(), isTrue);
-    // The index change is a staged deletion (`D `), and nothing more: git would
-    // not quietly drop a tracked file without one.
     final status = await temp.git(['status', '--porcelain', '--', 'junk.bin']);
-    expect((status.stdout as String).trim(), 'D  junk.bin');
-    expect(await checkedBy(temp, 'junk.bin'), contains('/junk.bin'));
+    expect((status.stdout as String).trim(), 'M junk.bin');
+    expect(changes.visible.map((row) => row.path), contains('junk.bin'));
+    expect(await File('${temp.path}/.gitignore').readAsString(), contains('/junk.bin'));
   });
 
   test('New here creates a .gitignore that git then reads', () async {
