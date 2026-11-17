@@ -13,6 +13,8 @@ priority: low
 
 ## Description
 
+**Merge 15 of 21** · stack C · branch `PR-lints-plan-drift` · stacked on `PR-mode-keys-source`
+
 Small things, one commit each. Decisions from the user on 2026-11-17 are marked **Decided**.
 
 - **Lints** (**Decided**: all five): add `unawaited_futures`, `discarded_futures`,

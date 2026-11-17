@@ -13,6 +13,8 @@ priority: low
 
 ## Description
 
+**Merge 19 of 21** · stack C · branch `PR-name-the-repository` · stacked on `PR-ignore-pane-follows`
+
 After a switch in Browse, nothing in the Changes mode says which repository it shows. The window
 title is always "Purrage", and the only path on screen is in the Browse list. With several
 checkouts of the same project, that is how a commit lands in the wrong one.

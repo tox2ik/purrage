@@ -13,6 +13,8 @@ priority: high
 
 ## Description
 
+**Merge 7 of 21** · stack B · branch `PR-time-the-actions` · stacked on `PR-keys-every-mode` (built on `main`, rebased onto stack A when the stacks are joined)
+
 Ops measures before it optimizes (`lib/timing/ui_timing.dart`, `make timings`, `test/timing_measure_test.dart`).
 Purrage has one `Stopwatch` in `Shell.reloadAll` and one in the browse scan, and nothing else.
 The perf tasks (task-2 to task-6) need a number before and after.

@@ -13,6 +13,8 @@ priority: high
 
 ## Description
 
+**Merge 2 of 21** · stack A · branch `PR-process-env-seams` · stacked on `PR-background-work-handle`
+
 Several branches can only run on a machine in a particular state, so no test reaches them:
 
 - `Repo.status` calls `Process.run('git', …)` directly, and its non-zero exit branch needs a

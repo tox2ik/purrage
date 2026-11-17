@@ -13,6 +13,8 @@ priority: medium
 
 ## Description
 
+**Merge 18 of 21** · stack C · branch `PR-ignore-pane-follows` · stacked on `PR-say-loading-state`
+
 The pane answers "why is this file ignored, or not?", but only when the user has already picked
 the right file in its rail. `IgnorePaneState.matchLine` returns null when the matching rule lives in
 another file (`lib/state/ignore_files.dart:65`), so a match in `lib/generated/.gitignore` while the

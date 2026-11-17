@@ -13,6 +13,8 @@ priority: high
 
 ## Description
 
+**Merge 21 of 21** · stack D · branch `PR-integration-flows` · stacked on `PR-coverage-gate`
+
 Design: `openspec/changes/test-coverage-and-integration/`. This task is the integration half:
 `integration_test/` driving the real app on `-d windows` against throwaway repositories, real git,
 real files and real keys, run locally with `make itest`.

@@ -14,6 +14,8 @@ priority: high
 
 ## Description
 
+**Merge 5 of 21** · stack A · branch `PR-ui-atoms-shortcuts` · stacked on `PR-serialize-actions`
+
 Measured against `~/ws/nvimos-ops/declarative_ui_guidelines.md` (nesting at most 3, `build` under
 50 lines, data-driven lists, no logic in handlers, dumb atoms and molecules) and the UI rules in Ops'
 CLAUDE.md (Flutter's own names and classes for the job, a label is part of its control, an explicit

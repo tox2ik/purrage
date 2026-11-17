@@ -13,6 +13,8 @@ priority: high
 
 ## Description
 
+**Merge 3 of 21** · stack A · branch `PR-workspace-out-of-shell` · stacked on `PR-process-env-seams`
+
 `lib/ui/shell.dart` is 730 lines, and most of it is work, not presentation:
 `openRepository` (new `Repo`, `Changes`, ignore pane, rescan, console rows), `reloadAll`,
 `report`/`say`, the ignore flows, `newIgnoreHere`, the editor opening, and the 250 ms ignore probe.

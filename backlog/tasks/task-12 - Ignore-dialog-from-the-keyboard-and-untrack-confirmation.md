@@ -13,6 +13,8 @@ priority: medium
 
 ## Description
 
+**Merge 16 of 21** · stack C · branch `PR-discrete-ignore-actions` · stacked on `PR-lints-plan-drift`
+
 `IgnoreDialog` (`lib/ui/ignore_dialog.dart`) is mouse-first:
 
 - The scope chips and the target tiles cannot be chosen by key. Wanted: `1`/`2`/`3` (or `f`/`x`/`d`)

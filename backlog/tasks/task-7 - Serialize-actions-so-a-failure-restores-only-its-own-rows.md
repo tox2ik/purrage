@@ -12,6 +12,8 @@ priority: high
 
 ## Description
 
+**Merge 4 of 21** · stack A · branch `PR-serialize-actions` · stacked on `PR-workspace-out-of-shell`
+
 Every optimistic action keeps `final before = _rows;` and puts it back on failure
 (`lib/state/changes.dart:287`, `:325`). Nothing stops a second action from starting while git
 still runs the first:

@@ -13,6 +13,8 @@ priority: high
 
 ## Description
 
+**Merge 13 of 21** · stack B · branch `PR-design-tokens` · stacked on `PR-scan-off-ui-thread`
+
 Measured against Ops' design principles (`~/ws/nvimos-ops/PLAN.md`, "Style and theme"): one
 dark, flat, quiet theme, `ui/theme.dart` as the only place with a colour, font size, radius or
 spacing step, a small scale for each, visible focus for a keyboard-first app, 4.5:1 text contrast,

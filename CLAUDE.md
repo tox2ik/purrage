@@ -23,6 +23,9 @@ without widgets). Project management lives here too: `backlog/` (Backlog.md task
   is done in a worktree per task, in its own session, created from the **local** `main`
   (`git worktree add -b <branch> <path> main`), never `origin/main`: local main has commits that
   are not pushed. Plans and suggestions themselves go on `main`.
+- Stacked branches: each task is one `PR-<slug>` branch, started from the branch before it in
+  the stack, and its commits carry `Stacked-On: PR-<previous>`. Each task file opens with its
+  merge position (`Merge N of 21`); merge in that order, which is then a fast-forward each time.
 - The user reads code; do not paste diffs into the chat. Report what changed and where.
 
 ## Commands
@@ -129,7 +132,11 @@ operator (`& "$(FLUTTER)" …`) because a quoted `.bat` path is not a command in
 - Status is one call: `git status --porcelain=v1 -z --untracked-files=all --find-renames`; the
   parser in `lib/state/status.dart` owns the format and is unit-tested with fixtures.
 - Ignore rules are written literally and anchored, escaped, deduplicated, with the file's line
-  endings preserved and **no blank line between rules**. Never write an over-broad glob.
+  endings preserved, into the file's **`# Purrage` section**: right after its last rule, **no
+  blank line between rules**, the section appended at the end when missing. Never write an
+  over-broad glob.
+- Track, Untrack and Ignore are discrete actions with no confirm dialogs. Untrack is always
+  `--cached`: **never remove a file from disk**.
 - `git check-ignore -v` output is `<source>:<line>:<pattern>\t<path>` and `<source>` starts with a
   drive letter on Windows: parse from the right (`^(.*):(\d+):(.*)$`), never at the first colon.
 - **Never pass a trailing slash to `check-ignore`**: `git status` prints an untracked directory as

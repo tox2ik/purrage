@@ -13,6 +13,8 @@ priority: high
 
 ## Description
 
+**Merge 6 of 21** · stack A · branch `PR-keys-every-mode` · stacked on `PR-ui-atoms-shortcuts`
+
 `ShellState.onKey` hands keys only to Changes (`lib/ui/shell.dart:232`). Everywhere else the mouse
 is the only way in, which breaks the Ops contract the plan copies:
 

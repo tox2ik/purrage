@@ -13,6 +13,8 @@ priority: high
 
 ## Description
 
+**Merge 9 of 21** · stack B · branch `PR-row-model-once` · stacked on `PR-one-git-call`
+
 A cursor move does far more than redraw the visible tiles:
 
 - `FileList.build` (`lib/ui/file_list.dart:106`) rebuilds the flat header/row list on every

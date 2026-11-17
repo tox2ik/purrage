@@ -15,6 +15,8 @@ priority: high
 
 ## Description
 
+**Merge 20 of 21** · stack D · branch `PR-coverage-gate` · stacked on `PR-name-the-repository` (started after the three stacks are joined, so it covers the final code)
+
 Design: `openspec/changes/test-coverage-and-integration/`. This task is the unit test half:
 the tooling, the exclusion policy, and the missing tests file by file, until `make coverage`
 reports 100% of the lines that are not excluded.

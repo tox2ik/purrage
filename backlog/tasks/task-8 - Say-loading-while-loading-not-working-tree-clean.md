@@ -13,6 +13,8 @@ priority: medium
 
 ## Description
 
+**Merge 17 of 21** · stack C · branch `PR-say-loading-state` · stacked on `PR-discrete-ignore-actions`
+
 `FileList.build` shows "Nothing to commit, working tree clean." whenever `changes.rows` is empty
 (`lib/ui/file_list.dart:86`), including before the first `git status` has answered and after a
 load that failed. On a big repository, or a home folder (`make live`), the first thing on screen is

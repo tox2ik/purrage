@@ -13,6 +13,8 @@ priority: high
 
 ## Description
 
+**Merge 8 of 21** · stack B · branch `PR-one-git-call` · stacked on `PR-time-the-actions`
+
 The optimistic redraw is instant, but git behind it scales with the selection:
 
 - `Changes.untrackSelected` runs `git rm --cached` once per row (`lib/state/changes.dart:333`).

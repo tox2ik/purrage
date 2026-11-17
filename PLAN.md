@@ -62,17 +62,22 @@ and the code disagree, fix one of them deliberately.
 
 - **Track** (`space` or the row button): `git add -- <path>`. For a deleted file this stages the
   deletion, which is what track means there.
-- **Untrack** (`u`): `git rm --cached -- <path>`; confirm first, and say in the dialog that the
-  file stays on disk.
+- Track, Untrack and Ignore are **three discrete actions**: none of them does another's work, and
+  none asks for confirmation (the app has no confirm dialogs).
+- **Untrack** (`u`): `git rm --cached -- <path>`, at once. It **never removes a file from disk**:
+  every path, including the `-f` retry for a nested repository, keeps `--cached`. Each untrack
+  adds a console row; untracks within 900 ms of each other share one notice that names all
+  their files.
 - **Ignore** (`i`, row menu): scope submenu — *this file* (`/path/to/file`), *this extension*
   (`*.ext`), *this folder* (`/path/to/folder/`) — and a *where* submenu: the repo root
   `.gitignore` (default), **a new `.gitignore` in the file's own folder**, `.git/info/exclude`,
   or the global ignore file.
-- **Ignore + stop tracking** for a row that git already tracks: ignore rule plus
-  `git rm --cached`, confirm dialog, mirroring GitKraken's two-step.
-- Ignore writes are literal and anchored, escape glob characters (`*?[]!`) in names, skip a
-  pattern already present, append after one blank line with a `# Purrage` comment and keep the
-  file's existing line endings and final newline.
+  Ignoring a file git already tracks writes the rule and nothing else; untracking it is `u`.
+- Ignore writes are literal and anchored, escape glob characters (`*?[]!`) in names, and skip a
+  pattern already present anywhere in the file. The app's rules live in a **`# Purrage`
+  section**: a new rule goes directly after the section's last rule, one per line, with no blank
+  lines between them. A file without the section gets `# Purrage` appended at its end, then the
+  rule; a new file is just the section. The file's line endings and final newline are kept.
 - **Open in editor** (`e` on a row, `E` for `.gitignore`): hands `{file}` to the chosen editor.
 - **Commit** (`c`): enabled only when something is staged and no merge is in progress; runs
   `git commit -F -` with the summary line, then refreshes. Failure shows the git text.

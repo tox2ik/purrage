@@ -13,6 +13,8 @@ priority: medium
 
 ## Description
 
+**Merge 12 of 21** · stack B · branch `PR-scan-off-ui-thread` · stacked on `PR-list-only-redraw`
+
 `RepoBrowser._scan` (`lib/state/browser.dart:235`) runs on the UI isolate. It already yields every
 8 directories, but:
 

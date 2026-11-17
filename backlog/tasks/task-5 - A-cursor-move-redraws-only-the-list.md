@@ -13,6 +13,8 @@ priority: medium
 
 ## Description
 
+**Merge 11 of 21** · stack B · branch `PR-list-only-redraw` · stacked on `PR-fixed-row-reveal`
+
 `ChangesView` wraps the whole mode in one `ListenableBuilder(changes)`
 (`lib/ui/changes_view.dart:43`). Every `notifyListeners()` (each `j`, each click, `busy` going on
 and off twice per load) rebuilds the error banner, the filter header, the commit bar

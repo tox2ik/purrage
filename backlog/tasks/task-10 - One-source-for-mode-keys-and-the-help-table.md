@@ -13,6 +13,8 @@ priority: high
 
 ## Description
 
+**Merge 14 of 21** · stack C · branch `PR-mode-keys-source` · stacked on `PR-design-tokens` (built on `main`, rebased onto stack B when the stacks are joined)
+
 The mode numbers changed when Browse arrived (`Mode` enum: Changes 1, Browse 2, Settings 3,
 Console 4, Help 5), and four places still say the old ones:
 

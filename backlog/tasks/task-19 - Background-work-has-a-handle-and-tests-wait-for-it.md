@@ -13,6 +13,8 @@ priority: high
 
 ## Description
 
+**Merge 1 of 21** · stack A · branch `PR-background-work-handle` · stacked on `main` (`v2-solidify`)
+
 Found while taking the coverage baseline: `test/changes_test.dart` "a rule that would never match is
 refused, not written" fails on every run. The test body passes, and the teardown fails:
 

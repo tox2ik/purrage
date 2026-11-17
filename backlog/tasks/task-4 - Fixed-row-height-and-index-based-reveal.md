@@ -14,6 +14,8 @@ priority: high
 
 ## Description
 
+**Merge 10 of 21** · stack B · branch `PR-fixed-row-reveal` · stacked on `PR-row-model-once`
+
 `_FileListState._reveal` (`lib/ui/file_list.dart:59`) finds the focused row through a
 `GlobalKey` per index. That has three problems:
 
