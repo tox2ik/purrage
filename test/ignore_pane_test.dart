@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:purrage/state/git_repo.dart';
@@ -190,7 +192,7 @@ void main() {
       await state.focusPath('b.swp');
       expect(state.outsideMatch?.file, 'C:/home/.config/git/ignore');
       expect(state.outsideMatch?.absolutePath, 'C:/home/.config/git/ignore');
-    });
+    }, skip: !Platform.isWindows ? 'Windows paths' : false);
 
     test('a path nothing ignores says so', () async {
       final state = await opened(fixture());

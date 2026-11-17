@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -194,7 +196,7 @@ void main() {
     await tester.pump();
     expect(shell.workspace.browser.directory, 'C:/');
     await settle(tester);
-  });
+  }, skip: !Platform.isWindows); // the fixture's paths are Windows paths
 
   testWidgets('Console without a mouse: move, unfold, copy', (tester) async {
     final (shell, _) = await openShell(tester, rows: [untracked('a.txt')]);
