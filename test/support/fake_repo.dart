@@ -82,6 +82,12 @@ class FakeRepo implements GitRepo {
   }
 
   @override
+  Future<bool> isNestedRepository(String path) async => nested.contains(path);
+
+  /// Paths a test says hold their own repository.
+  final Set<String> nested = {};
+
+  @override
   Future<void> createIgnoreFile(String absolutePath) async {
     files.putIfAbsent(absolutePath, () => '# Purrage\n');
   }

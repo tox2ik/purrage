@@ -74,6 +74,11 @@ abstract class GitRepo {
   /// implementation does not run git.
   String? get lastCommand;
 
+  /// True when [path] holds a repository of its own: an embedded repo, a gitlink
+  /// or a submodule. The list marks those rows, because their ignore rules live
+  /// inside them, not here.
+  Future<bool> isNestedRepository(String path);
+
   /// Commit the index with one summary line.
   Future<void> commit(String summary);
 

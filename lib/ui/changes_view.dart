@@ -55,8 +55,7 @@ class ChangesView extends StatelessWidget {
                 Expanded(
                   child: FileList(
                     changes: changes,
-                    onIgnore: onIgnore,
-                    onQuickIgnore: onQuickIgnore,
+                    onIgnore: onIgnore,                    onQuickIgnore: onQuickIgnore,
                     onTrack: onTrack,
                     onUntrack: onUntrack,
                     onOpen: onOpen,

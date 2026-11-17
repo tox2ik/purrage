@@ -203,6 +203,17 @@ class Repo implements GitRepo {
     await writeTextFile(file, '# Purrage\n');
   }
 
+  /// A `.git` of its own, file or folder, makes the path a repository: an
+  /// embedded repo, a gitlink or a submodule. One stat per row that can be one.
+  @override
+  Future<bool> isNestedRepository(String path) async {
+    final clean = path.endsWith('/') ? path.substring(0, path.length - 1) : path;
+    if (clean.isEmpty) return false;
+    final root = this.path.replaceAll(r'\', '/').replaceAll(RegExp(r'/+$'), '');
+    final kind = await FileSystemEntity.type('$root/$clean/.git');
+    return kind != FileSystemEntityType.notFound;
+  }
+
   /// Write [text] to [file], getting past the Windows Hidden attribute.
   ///
   /// Windows refuses `CreateFileW(..., CREATE_ALWAYS)` with ERROR_ACCESS_DENIED

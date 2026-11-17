@@ -60,6 +60,33 @@ class Changes extends ChangeNotifier {
   String? lastOrigin;
   int lastChanged = 0;
 
+  /// Rows whose folder is a repository of its own, and the ones already asked
+  /// about, so a reload does not stat the same path again.
+  final Set<String> _nested = {};
+  final Set<String> _scanned = {};
+
+  /// True when the row's folder holds a `.git` of its own.
+  bool isNested(StatusRow row) => _nested.contains(_dirKey(row.path));
+
+  static String _dirKey(String path) =>
+      path.endsWith('/') ? path.substring(0, path.length - 1) : path;
+
+  /// Ask once per path whether it is an embedded repository, and redraw when a
+  /// new one is found. A stat per row, off the frame that drew the list.
+  void _scanNested() {
+    for (final row in _rows) {
+      final key = _dirKey(row.path);
+      if (key.isEmpty || !_scanned.add(key)) continue;
+      repo.isNestedRepository(key).then((nested) {
+        if (!nested) return;
+        _nested.add(key);
+        notifyListeners();
+      }).catchError((Object _) {
+        // A path that cannot be stat-ed simply gets no indicator.
+      });
+    }
+  }
+
   List<StatusRow> get selectedRows => [
         for (final row in _visible)
           if (isSelected(row)) row,
@@ -91,6 +118,7 @@ class Changes extends ChangeNotifier {
       _pruneSelection();
       _index = _indexAfterReload(keepPath);
       _selectCursorIfEmpty();
+      _scanNested();
       _error = null;
     } on GitException catch (error) {
       _error = error.message;
@@ -478,6 +506,7 @@ class Changes extends ChangeNotifier {
     _pruneSelection();
     _index = _visible.isEmpty ? 0 : _index.clamp(0, _visible.length - 1);
     _selectCursorIfEmpty();
+    _scanNested();
     notifyListeners();
   }
 

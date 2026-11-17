@@ -135,6 +135,7 @@ class _FileListState extends State<FileList> {
       row: row,
       focused: index == changes.index,
       chosen: changes.isSelected(row),
+      nested: changes.isNested(row),
       onTap: (ctrl, shift) => changes.click(index, ctrl: ctrl, shift: shift),
       onTrack: () {
         if (!changes.isSelected(row)) changes.click(index);
@@ -184,6 +185,7 @@ class RowTile extends StatelessWidget {
     required this.row,
     required this.focused,
     required this.chosen,
+    required this.nested,
     required this.onTap,
     required this.onTrack,
     required this.onUntrack,
@@ -195,6 +197,7 @@ class RowTile extends StatelessWidget {
   final StatusRow row;
   final bool focused;
   final bool chosen;
+  final bool nested;
   final void Function(bool ctrl, bool shift) onTap;
   final VoidCallback onTrack;
   final VoidCallback onUntrack;
@@ -235,6 +238,10 @@ class RowTile extends StatelessWidget {
                 _Badge(text: _badge, color: chosen ? scheme.primary : scheme.onSurfaceVariant),
                 const SizedBox(width: 7),
                 Expanded(child: _name(style, scheme, chosen)),
+                if (nested) ...[
+                  const SizedBox(width: 6),
+                  const _RepoBadge(),
+                ],
               ],
             ),
           ),
@@ -398,4 +405,37 @@ class RowEntry {
 
   final StatusRow row;
   final int index;
+}
+
+/// The tiny marker on a row whose folder holds a repository of its own: an
+/// embedded repo, a gitlink or a submodule. Its ignore rules live in there, not
+/// in this repository's `.gitignore`.
+class _RepoBadge extends StatelessWidget {
+  const _RepoBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Tooltip(
+      message: 'Nested git repository: its ignore rules live in its own .gitignore',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+        decoration: BoxDecoration(
+          border: Border.all(color: scheme.outline),
+          borderRadius: BorderRadius.circular(3),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.account_tree_outlined, size: 10, color: scheme.onSurfaceVariant),
+            const SizedBox(width: 3),
+            Text(
+              'git',
+              style: TextStyle(fontSize: 9.5, color: scheme.onSurfaceVariant),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
