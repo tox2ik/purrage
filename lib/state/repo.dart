@@ -94,26 +94,52 @@ class Repo implements GitRepo {
   /// Stage a whole file, or a deletion when the file is gone.
   @override
   Future<void> track(Iterable<String> paths) async {
-    if (paths.isEmpty) return;
-    await _git(['add', '--', ...paths]);
+    for (final batch in argumentBatches(paths)) {
+      await _git(['add', '--', ...batch]);
+    }
   }
 
-  /// Stop tracking a path but leave it on disk.
+  /// Stop tracking [paths] but leave them on disk: one `git rm --cached` per
+  /// batch of arguments, usually one for the whole selection.
   @override
-  Future<void> untrack(String path) async {
-    try {
-      await _git(['rm', '--cached', '--', path]);
-    } on Object catch (error) {
-      // The `git` package throws ProcessException, our own code throws
-      // GitException: match on the text, which is what actually says why.
-      final text = '$error'.toLowerCase();
-      final needsForce = text.contains('use -f') || text.contains('force removal');
-      if (!needsForce) rethrow;
-      // A submodule or a nested repository: its staged content matches neither
-      // HEAD nor the working tree, so git insists on -f. With --cached that only
-      // drops the index entry; the file or folder stays on disk.
-      await _git(['rm', '--cached', '-f', '--', path]);
+  Future<void> untrack(Iterable<String> paths) async {
+    for (final batch in argumentBatches(paths)) {
+      try {
+        await _git(['rm', '--cached', '--', ...batch]);
+      } on Object catch (error) {
+        // The `git` package throws ProcessException, our own code throws
+        // GitException: match on the text, which is what actually says why.
+        final text = '$error'.toLowerCase();
+        final needsForce = text.contains('use -f') || text.contains('force removal');
+        if (!needsForce) rethrow;
+        // A submodule or a nested repository: its staged content matches neither
+        // HEAD nor the working tree, so git insists on -f. With --cached that
+        // only drops the index entry; the file or folder stays on disk. git
+        // refuses the whole batch for one such path, so the batch is retried.
+        await _git(['rm', '--cached', '-f', '--', ...batch]);
+      }
     }
+  }
+
+  /// Windows limits a command line to 32,767 characters. Paths are split into
+  /// batches whose arguments stay under [limit], leaving room for git's own
+  /// arguments and the quotes around a path with spaces.
+  static List<List<String>> argumentBatches(Iterable<String> paths, {int limit = 30000}) {
+    final batches = <List<String>>[];
+    var current = <String>[];
+    var length = 0;
+    for (final path in paths) {
+      final cost = path.length + 3; // a space and two quotes
+      if (current.isNotEmpty && length + cost > limit) {
+        batches.add(current);
+        current = <String>[];
+        length = 0;
+      }
+      current.add(path);
+      length += cost;
+    }
+    if (current.isNotEmpty) batches.add(current);
+    return batches;
   }
 
   /// Commit the index with one summary line.
@@ -138,6 +164,53 @@ class Repo implements GitRepo {
     );
     if (result.exitCode != 0) return null;
     return IgnoreMatch.parse((result.stdout as String).trim());
+  }
+
+  /// One `git check-ignore -v -n -z --stdin` for every path: the paths go in on
+  /// stdin, so there is no command line limit, and the answer comes back as NUL
+  /// records parsed by [IgnoreMatch.parseZ].
+  ///
+  /// The second git call (after [status]) that goes through the [ProcessRunner]
+  /// rather than the `git` package: `GitDir.runCommand` cannot write to stdin.
+  /// Trailing slashes are stripped first, for the reason [checkIgnore] gives. A
+  /// fatal answer (exit 128, e.g. a path inside a submodule) would hide every
+  /// other path's answer, so it falls back to one call per path.
+  @override
+  Future<Map<String, IgnoreMatch>> checkIgnoreAll(Iterable<String> paths) async {
+    final asked = <String, List<String>>{};
+    for (final path in paths) {
+      final clean = path.endsWith('/') ? path.substring(0, path.length - 1) : path;
+      if (clean.isEmpty) continue;
+      asked.putIfAbsent(clean, () => []).add(path);
+    }
+    if (asked.isEmpty) return {};
+    const args = ['check-ignore', '-v', '-n', '-z', '--stdin'];
+    lastCommand = 'git ${args.join(' ')}  (${asked.length} paths on stdin)';
+    final result = await runner.run(
+      'git',
+      args,
+      cwd: path,
+      stdin: asked.keys.map((path) => '$path\u0000').join(),
+      encoding: utf8,
+    );
+
+    final found = <String, IgnoreMatch>{};
+    if (result.exitCode > 1) {
+      for (final MapEntry(key: clean, value: originals) in asked.entries) {
+        final match = await checkIgnore(clean);
+        if (match == null) continue;
+        for (final original in originals) {
+          found[original] = match;
+        }
+      }
+      return found;
+    }
+    for (final match in IgnoreMatch.parseZ(result.stdout)) {
+      for (final original in asked[match.path] ?? const <String>[]) {
+        found[original] = match;
+      }
+    }
+    return found;
   }
 
   /// Paths inside the repository, for the `.gitignore` list.
@@ -210,16 +283,27 @@ class Repo implements GitRepo {
     return file.readAsString();
   }
 
-  /// Append one rule to an ignore file, keeping its line endings and leaving one
-  /// blank line before the new rule. A rule already present is left alone.
+  /// Append one rule to an ignore file; see [appendIgnoreLines].
   @override
-  Future<IgnoreAppend> appendIgnoreLine(String absolutePath, String pattern) async {    final file = File(absolutePath);
+  Future<IgnoreAppend> appendIgnoreLine(String absolutePath, String pattern) async =>
+      (await appendIgnoreLines(absolutePath, [pattern])).single;
+
+  /// Append rules to an ignore file with one read and one write, keeping its
+  /// line endings and with no blank line between rules. A rule already present,
+  /// or earlier in [patterns], is left alone; nothing new means no write.
+  @override
+  Future<List<IgnoreAppend>> appendIgnoreLines(String absolutePath, List<String> patterns) async {
+    final file = File(absolutePath);
     final existing = await readTextFile(absolutePath);
-    final present = existing
-        .split(RegExp(r'\r?\n'))
-        .map((line) => line.trim())
-        .any((line) => line == pattern);
-    if (present) return IgnoreAppend.duplicate;
+    final present = existing.split(RegExp(r'\r?\n')).map((line) => line.trim()).toSet();
+    final fresh = <String>[];
+    final answers = <IgnoreAppend>[];
+    for (final pattern in patterns) {
+      final isNew = present.add(pattern);
+      if (isNew) fresh.add(pattern);
+      answers.add(isNew ? IgnoreAppend.added : IgnoreAppend.duplicate);
+    }
+    if (fresh.isEmpty) return answers;
 
     final eol = existing.contains('\r\n') ? '\r\n' : '\n';
     final buffer = StringBuffer(existing);
@@ -228,10 +312,12 @@ class Repo implements GitRepo {
     } else if (!existing.endsWith('\n')) {
       buffer.write(eol);
     }
-    buffer.write('$pattern$eol');
+    for (final pattern in fresh) {
+      buffer.write('$pattern$eol');
+    }
     await file.parent.create(recursive: true);
     await writeTextFile(file, buffer.toString());
-    return IgnoreAppend.added;
+    return answers;
   }
 
   /// Create an ignore file that is not there yet, with the Purrage header.

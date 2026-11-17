@@ -168,7 +168,7 @@ void main() {
 
     test('an exception inside an action becomes a notice, not a crash', () async {
       final (workspace, repo) = await started([untracked('notes.md')]);
-      repo.failures['checkIgnore'] = GitException('git died');
+      repo.failures['checkIgnoreAll'] = GitException('git died');
       await workspace.ignoreQuick();
       expect(workspace.notices.current?.message, 'ignore failed');
     });

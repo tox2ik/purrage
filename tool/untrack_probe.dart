@@ -33,7 +33,7 @@ Future<void> main() async {
 
     final repo = await Repo.open(outer.path);
     try {
-      await repo.untrack('inner');
+      await repo.untrack(['inner']);
       print('untrack: ok');
       print('command: ${repo.lastCommand}');
       print('index entries left: '

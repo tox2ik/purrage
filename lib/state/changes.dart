@@ -439,9 +439,8 @@ class Changes extends ChangeNotifier {
     final planned = 'git rm --cached -- ${rows.take(8).map((row) => row.path).join(' ')}';
     return _enqueue(() async {
       try {
-        for (final row in rows) {
-          await repo.untrack(row.path);
-        }
+        // One `git rm --cached` for the lot, not one process per row.
+        await repo.untrack(rows.map((row) => row.path));
         span.mark('git');
       } on Exception catch (error) {
         _undo(change);
@@ -602,11 +601,11 @@ class Changes extends ChangeNotifier {
     required IgnoreTarget target,
     required bool stopTracking,
   }) async {
-    const origin = 'Changes.ignoreSelected -> IgnoreRules.pattern -> Repo.appendIgnoreLine';
+    const origin = 'Changes.ignoreSelected -> IgnoreRules.pattern -> Repo.appendIgnoreLines';
     final rows = actionRows;
     if (rows.isEmpty) return ActionResult.refused('ignore', 'nothing selected', origin);
     final skipped = <String>[];
-    final plans = <_IgnorePlan>[];
+    final candidates = <_IgnorePlan>[];
     for (final row in rows) {
       final rowTarget = _targetFor(row, target);
       final pattern = IgnoreRules.pattern(
@@ -618,13 +617,21 @@ class Changes extends ChangeNotifier {
         skipped.add('${row.name}: no rule for this scope');
         continue;
       }
-      final existing = await repo.checkIgnore(row.path);
-      if (existing != null) {
-        final where = '${_shortSource(existing.source)}:${existing.line}';
-        skipped.add('${row.path}: `${existing.pattern}` in $where');
+      candidates.add(_IgnorePlan(row: row, target: rowTarget, pattern: pattern));
+    }
+    // One check-ignore for every row, not one process per row.
+    final existing = candidates.isEmpty
+        ? const <String, IgnoreMatch>{}
+        : await repo.checkIgnoreAll(candidates.map((plan) => plan.row.path));
+    final plans = <_IgnorePlan>[];
+    for (final plan in candidates) {
+      final match = existing[plan.row.path];
+      if (match == null) {
+        plans.add(plan);
         continue;
       }
-      plans.add(_IgnorePlan(row: row, target: rowTarget, pattern: pattern));
+      final where = '${_shortSource(match.source)}:${match.line}';
+      skipped.add('${plan.row.path}: `${match.pattern}` in $where');
     }
     span.mark('check');
 
@@ -643,7 +650,7 @@ class Changes extends ChangeNotifier {
       return ActionResult.failed(
         'ignore',
         ActionFailure.fromSkips(
-          origin: 'Changes.ignoreSelected -> Repo.checkIgnore',
+          origin: 'Changes.ignoreSelected -> Repo.checkIgnoreAll',
           summary: skipped.take(3).join('; '),
           skipped: skipped,
           params: params(0),
@@ -662,17 +669,14 @@ class Changes extends ChangeNotifier {
             .join('\n') +
         (plans.length > 8 ? '\n...(${plans.length} rules)' : '');
     return _enqueue(() async {
-      var added = 0;
-      for (final plan in plans) {
-        final problem = await _writeRule(plan, stopTracking: stopTracking);
-        if (problem == null) {
-          added++;
-          continue;
-        }
-        skipped.add(problem);
-        // This row's rule was not written: it comes back, and only it.
-        _undo(_RowChange(removed: [plan.row]));
-      }
+      final written = await _writeRules(plans, skipped);
+      final done = {...written};
+      if (stopTracking) done.removeAll(await _untrackIgnored(written, skipped));
+      // Rows whose rule was not written (or that are still tracked) come back,
+      // and only they.
+      final back = [for (final plan in plans) if (!done.contains(plan)) plan.row];
+      if (back.isNotEmpty) _undo(_RowChange(removed: back));
+      final added = done.length;
       span.mark('git');
       await _settle();
       if (skipped.isEmpty) {
@@ -694,19 +698,50 @@ class Changes extends ChangeNotifier {
     });
   }
 
-  /// Write one planned rule; null when it was written, else why not.
-  Future<String?> _writeRule(_IgnorePlan plan, {required bool stopTracking}) async {
-    try {
-      final appended = await repo.appendIgnoreLine(plan.target.path, plan.pattern);
-      if (appended == IgnoreAppend.duplicate) {
-        return '${plan.row.path}: `${plan.pattern}` already there';
+  /// Write every plan's rule, one read and one write per ignore file. Returns
+  /// the plans whose rule was added; the rest get a line in [skipped].
+  Future<List<_IgnorePlan>> _writeRules(List<_IgnorePlan> plans, List<String> skipped) async {
+    final byFile = <String, List<_IgnorePlan>>{};
+    for (final plan in plans) {
+      byFile.putIfAbsent(plan.target.path, () => []).add(plan);
+    }
+    final written = <_IgnorePlan>[];
+    for (final MapEntry(key: file, value: group) in byFile.entries) {
+      try {
+        final answers = await repo.appendIgnoreLines(file, [for (final plan in group) plan.pattern]);
+        for (var i = 0; i < group.length; i++) {
+          final plan = group[i];
+          if (answers[i] == IgnoreAppend.added) {
+            written.add(plan);
+          } else {
+            skipped.add('${plan.row.path}: `${plan.pattern}` already there');
+          }
+        }
+      } on GitException catch (error) {
+        skipped.addAll(group.map((plan) => '${plan.row.path}: ${error.message}'));
+      } on FileSystemException catch (error) {
+        final reason = 'cannot write $file (${_osText(error)})';
+        skipped.addAll(group.map((plan) => '${plan.row.path}: $reason'));
       }
-      if (stopTracking) await repo.untrack(plan.row.path);
-      return null;
-    } on GitException catch (error) {
-      return '${plan.row.path}: ${error.message}';
-    } on FileSystemException catch (error) {
-      return '${plan.row.path}: cannot write ${plan.target.path} (${_osText(error)})';
+    }
+    return written;
+  }
+
+  /// "Stop tracking" in the ignore dialog: one `git rm --cached` for the tracked
+  /// rows whose rule was written. Returns the plans that are still tracked.
+  Future<List<_IgnorePlan>> _untrackIgnored(List<_IgnorePlan> written, List<String> skipped) async {
+    final tracked = [
+      for (final plan in written)
+        if (plan.row.section != Section.untracked) plan,
+    ];
+    if (tracked.isEmpty) return const [];
+    try {
+      await repo.untrack(tracked.map((plan) => plan.row.path));
+      return const [];
+    } on Exception catch (error) {
+      final reason = error is GitException ? error.message : '$error';
+      skipped.addAll(tracked.map((plan) => '${plan.row.path}: rule written, still tracked ($reason)'));
+      return tracked;
     }
   }
 

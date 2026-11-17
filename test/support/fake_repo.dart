@@ -4,7 +4,8 @@ import 'package:purrage/state/git_repo.dart';
 import 'package:purrage/state/status.dart';
 
 /// A repository that answers from memory, for widget tests: no git, no files, no
-/// real clock. Everything a test asserts about is recorded in [writes].
+/// real clock. Everything a test asserts about is recorded in [writes] and
+/// [calls].
 class FakeRepo implements GitRepo {
   FakeRepo(this.rows, {this.path = 'C:/repo'});
 
@@ -25,8 +26,12 @@ class FakeRepo implements GitRepo {
   /// `untrack`, `commit`, `status`, `createIgnoreFile`, ...).
   final Map<String, Object> failures = {};
 
-  /// Every method called, in order.
+  /// Every method called, in order: what would be one git process (or one
+  /// file write) each in the real repository.
   final List<String> calls = [];
+
+  /// How often [method] was called.
+  int count(String method) => calls.where((call) => call == method).length;
 
   /// Calls held open until the test completes the completer: `complete()`
   /// lets the call go on, `completeError(e)` fails it with `e`. One hold
@@ -70,12 +75,13 @@ class FakeRepo implements GitRepo {
   }
 
   @override
-  Future<void> untrack(String path) async {
+  Future<void> untrack(Iterable<String> paths) async {
     await _enter('untrack');
-    lastCommand = 'git rm --cached -- $path';
+    final gone = paths.toSet();
+    lastCommand = 'git rm --cached -- ${gone.join(' ')}';
     rows = [
       for (final row in rows)
-        if (row.path != path) row,
+        if (!gone.contains(row.path)) row,
     ];
   }
 
@@ -99,6 +105,15 @@ class FakeRepo implements GitRepo {
   }
 
   @override
+  Future<Map<String, IgnoreMatch>> checkIgnoreAll(Iterable<String> paths) async {
+    await _enter('checkIgnoreAll');
+    return {
+      for (final path in paths)
+        if (ignored[path] != null) path: ignored[path]!,
+    };
+  }
+
+  @override
   Future<List<String>> gitignoreFiles() async {
     await _enter('gitignoreFiles');
     return ['.gitignore'];
@@ -116,13 +131,29 @@ class FakeRepo implements GitRepo {
   @override
   Future<IgnoreAppend> appendIgnoreLine(String absolutePath, String pattern) async {
     await _enter('appendIgnoreLine');
-    writes.add('$absolutePath|$pattern');
-    files[absolutePath] = '${files[absolutePath] ?? ''}$pattern\n';
+    _append(absolutePath, [pattern]);
+    return IgnoreAppend.added;
+  }
+
+  @override
+  Future<List<IgnoreAppend>> appendIgnoreLines(String absolutePath, List<String> patterns) async {
+    await _enter('appendIgnoreLines');
+    _append(absolutePath, patterns);
+    return [for (final _ in patterns) IgnoreAppend.added];
+  }
+
+  /// Write every rule (no duplicate check here: the real file does that) and
+  /// drop the rows a literal rule names.
+  void _append(String absolutePath, List<String> patterns) {
+    for (final pattern in patterns) {
+      writes.add('$absolutePath|$pattern');
+      files[absolutePath] = '${files[absolutePath] ?? ''}$pattern\n';
+    }
+    final gone = patterns.toSet();
     rows = [
       for (final row in rows)
-        if (pattern != '/${row.path}') row,
+        if (!gone.contains('/${row.path}')) row,
     ];
-    return IgnoreAppend.added;
   }
 
   @override

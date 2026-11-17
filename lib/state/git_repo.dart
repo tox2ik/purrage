@@ -60,6 +60,28 @@ class IgnoreMatch {
       path: path,
     );
   }
+
+  /// `git check-ignore -v -n -z` output: four NUL-terminated fields per path,
+  /// `<source> <line> <pattern> <path>`. The fields are separated by NUL, so
+  /// the drive letter's colon in `<source>` cannot be mistaken for a separator.
+  /// A path no rule matches (`-n`) has an empty source and pattern, and an empty
+  /// pattern is never a rule (see [parse]); neither is returned.
+  static List<IgnoreMatch> parseZ(String raw) {
+    final fields = raw.split('\u0000');
+    final found = <IgnoreMatch>[];
+    for (var i = 0; i + 3 < fields.length; i += 4) {
+      final source = fields[i];
+      final pattern = fields[i + 2];
+      if (source.isEmpty || pattern.trim().isEmpty) continue;
+      found.add(IgnoreMatch(
+        source: source,
+        line: int.tryParse(fields[i + 1]) ?? 0,
+        pattern: pattern,
+        path: fields[i + 3],
+      ));
+    }
+    return found;
+  }
 }
 
 /// Everything the app needs from a repository.
@@ -72,8 +94,9 @@ abstract class GitRepo {
   /// Stage whole files, or their deletions when they are gone.
   Future<void> track(Iterable<String> paths);
 
-  /// Stop tracking a path but leave it on disk.
-  Future<void> untrack(String path);
+  /// Stop tracking [paths] but leave them on disk: one `git rm --cached` for
+  /// the lot (a few, when the argument list is longer than Windows allows).
+  Future<void> untrack(Iterable<String> paths);
 
   /// The git command line that ran last, for the console's report; null when the
   /// implementation does not run git.
@@ -95,6 +118,10 @@ abstract class GitRepo {
   /// The rule that ignores [path], if any.
   Future<IgnoreMatch?> checkIgnore(String path);
 
+  /// The rule that ignores each of [paths], in one git call. The keys are the
+  /// paths as given; a path no rule matches is not in the map.
+  Future<Map<String, IgnoreMatch>> checkIgnoreAll(Iterable<String> paths);
+
   /// Every `.gitignore` in the working tree, repo-relative.
   Future<List<String>> gitignoreFiles();
 
@@ -109,6 +136,11 @@ abstract class GitRepo {
 
   /// Append one rule to an ignore file.
   Future<IgnoreAppend> appendIgnoreLine(String absolutePath, String pattern);
+
+  /// Append [patterns] to one ignore file with one read and one write. The
+  /// answer is aligned with [patterns]: a rule already in the file, or earlier
+  /// in the same list, is a [IgnoreAppend.duplicate].
+  Future<List<IgnoreAppend>> appendIgnoreLines(String absolutePath, List<String> patterns);
 
   /// Create an empty ignore file with the Purrage header, if it is not there.
   Future<void> createIgnoreFile(String absolutePath);

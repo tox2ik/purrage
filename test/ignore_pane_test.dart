@@ -44,7 +44,17 @@ class IgnoreFakeRepo implements GitRepo {
   Future<void> track(Iterable<String> paths) async {}
 
   @override
-  Future<void> untrack(String path) async {}
+  Future<void> untrack(Iterable<String> paths) async {}
+
+  @override
+  Future<Map<String, IgnoreMatch>> checkIgnoreAll(Iterable<String> paths) async => {
+        for (final path in paths)
+          if (matches[path] != null) path: matches[path]!,
+      };
+
+  @override
+  Future<List<IgnoreAppend>> appendIgnoreLines(String absolutePath, List<String> patterns) async =>
+      [for (final _ in patterns) IgnoreAppend.added];
 
   @override
   Future<void> commit(String summary) async {}

@@ -37,6 +37,19 @@ class TempRepo {
     return repo;
   }
 
+  /// A repository of its own at [relative] inside [outer]; it goes away with
+  /// the outer one.
+  static Future<TempRepo> nested(TempRepo outer, String relative) async {
+    final dir = Directory('${outer.dir.path}/$relative');
+    await dir.create(recursive: true);
+    final repo = TempRepo._(dir);
+    await repo.git(['init', '-q', '-b', 'main']);
+    await repo.git(['config', 'user.email', 'test@example.com']);
+    await repo.git(['config', 'user.name', 'test']);
+    await repo.git(['config', 'core.fsmonitor', 'false']);
+    return repo;
+  }
+
   Future<ProcessResult> git(List<String> args) async {
     final result = await Process.run(
       'git',
