@@ -80,6 +80,7 @@ class Changes extends ChangeNotifier {
   /// per directory row is what made scrolling stutter on Windows.
   Future<void> _scanNested(List<StatusRow> rows) async {
     final links = await repo.gitlinks();
+    if (_disposed) return;
     for (final link in links) {
       _nested.add(link);
     }
@@ -96,12 +97,44 @@ class Changes extends ChangeNotifier {
         continue;
       }
       final nested = await repo.isNestedRepository(key);
+      if (_disposed) return;
       if (nested) _nested.add(key);
       // Hand the frame back every so often, so a hundred stats cannot hold the
       // event loop while the user scrolls.
       if (++asked % 20 == 0) await Future<void>.delayed(Duration.zero);
     }
     notifyListeners();
+  }
+
+  /// The nested-repository probe that `load()` started and nobody awaits, kept
+  /// so [idle] and [dispose] can find it.
+  Future<void>? _nestedScan;
+  bool _disposed = false;
+
+  /// Completes when every background job this object started is done. Tests
+  /// await it before their temp repository is deleted: Windows will not delete
+  /// a folder that is a live git process's working directory.
+  Future<void> idle() async {
+    while (_nestedScan != null) {
+      final running = _nestedScan!;
+      await running;
+      if (identical(_nestedScan, running)) _nestedScan = null;
+    }
+  }
+
+  /// No further probe starts, and a running one stops at its next step without
+  /// redrawing.
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  /// An action that ends after its owner was disposed (Browse switched the
+  /// repository) has nobody to redraw.
+  @override
+  void notifyListeners() {
+    if (!_disposed) super.notifyListeners();
   }
 
   List<StatusRow> get selectedRows => [
@@ -126,7 +159,7 @@ class Changes extends ChangeNotifier {
   /// Reload from git, keeping the cursor on the same path when it still exists.
   ///
   /// The nested-repository probe runs after the list is on screen and is not
-  /// awaited: the rows must not wait on a hundred stats.
+  /// awaited: the rows must not wait on a hundred stats. [idle] waits for it.
   Future<void> load() async {
     _busy = true;
     notifyListeners();
@@ -145,7 +178,7 @@ class Changes extends ChangeNotifier {
       _busy = false;
       notifyListeners();
     }
-    unawaited(_scanNested(_rows));
+    if (!_disposed) _nestedScan = _scanNested(_rows);
   }
 
   /// A reload can drop rows; their keys must not linger in the selection.

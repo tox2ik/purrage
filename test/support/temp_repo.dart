@@ -1,6 +1,10 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:purrage/state/changes.dart';
+import 'package:purrage/state/repo.dart';
+
+import 'temp_dirs.dart';
 
 /// A throwaway repository for one test, deleted when the test ends.
 ///
@@ -13,12 +17,14 @@ class TempRepo {
 
   String get path => dir.path.replaceAll(r'\', '/');
 
+  /// Teardowns run last-registered first, so the delete registered here runs
+  /// after a test's own `addTearDown(changes.idle)`: the background git work is
+  /// over before the folder goes. A folder still locked after the retries is
+  /// left to `flutter_test_config.dart`, which fails the file over it.
   static Future<TempRepo> make({bool withGitignore = true}) async {
-    final dir = await Directory.systemTemp.createTemp('purrage_');
+    final dir = keepForCleanup(await Directory.systemTemp.createTemp('purrage_'));
     final repo = TempRepo._(dir);
-    addTearDown(() async {
-      if (await dir.exists()) await dir.delete(recursive: true);
-    });
+    addTearDown(() => deleteWithRetry(dir));
     await repo.git(['init', '-b', 'main']);
     await repo.git(['config', 'user.email', 'test@example.com']);
     await repo.git(['config', 'user.name', 'test']);
@@ -44,6 +50,10 @@ class TempRepo {
     return result;
   }
 
+  /// A [Changes] over this repository whose background work (the nested probe)
+  /// the test waits for before the folder is deleted.
+  Future<Changes> changes() async => watch(Changes(await Repo.open(path)));
+
   Future<File> write(String relative, String content) async {
     final file = File('${dir.path}/$relative');
     await file.parent.create(recursive: true);
@@ -51,13 +61,9 @@ class TempRepo {
   }
 }
 
-/// True when the temp folder still holds `purrage_*` folders, for the
-/// cleanup check in CLAUDE.md.
-Future<int> leftoverTempDirs() async {
-  var count = 0;
-  await for (final entity in Directory.systemTemp.list()) {
-    final name = entity.uri.pathSegments.lastWhere((s) => s.isNotEmpty, orElse: () => '');
-    if (name.startsWith('purrage_')) count++;
-  }
-  return count;
+/// Register [changes] so the test's teardown waits for its background work. The
+/// teardown is registered after [TempRepo.make]'s delete, so it runs first.
+Changes watch(Changes changes) {
+  addTearDown(changes.idle);
+  return changes;
 }

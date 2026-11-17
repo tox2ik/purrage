@@ -34,7 +34,7 @@ void main() {
   test('quick ignore writes a literal rule that git then honours', () async {
     final temp = await TempRepo.make();
     await temp.write('notes.md', 'scratch\n');
-    final changes = Changes(await Repo.open(temp.path));
+    final changes = await temp.changes();
     await changes.load();
 
     expect(changes.visible.single.path, 'notes.md');
@@ -53,7 +53,7 @@ void main() {
   test('the dialog target writes into a nested .gitignore, relative to it', () async {
     final temp = await TempRepo.make();
     await temp.write('lib/generated/a.g.dart', 'generated\n');
-    final changes = Changes(await Repo.open(temp.path));
+    final changes = await temp.changes();
     await changes.load();
 
     final targets = await changes.ignoreTargets();
@@ -85,7 +85,7 @@ void main() {
     await temp.write('a.log', '1\n');
     await temp.write('b.log', '2\n');
     await temp.write('keep.txt', '3\n');
-    final changes = Changes(await Repo.open(temp.path));
+    final changes = await temp.changes();
     await changes.load();
 
     expect(changes.visible.map((row) => row.path), containsAll(['a.log', 'b.log']));
@@ -116,7 +116,7 @@ void main() {
     await repo.commit('add keep');
     await temp.write('keep.txt', 'changed\n');
 
-    final changes = Changes(repo);
+    final changes = watch(Changes(repo));
     await changes.load();
     expect(changes.visible.single.path, 'keep.txt');
     expect(changes.visible.single.section.name, 'changed');
@@ -141,7 +141,7 @@ void main() {
     await repo.commit('add junk');
     await temp.write('junk.bin', 'y\n');
 
-    final changes = Changes(repo);
+    final changes = watch(Changes(repo));
     await changes.load();
     final root = changes.rootTarget;
     expect(
@@ -177,7 +177,7 @@ void main() {
     final temp = await TempRepo.make();
     await temp.write('odd[1].txt', 'x\n');
     await temp.write('odd1.txt', 'x\n');
-    final changes = Changes(await Repo.open(temp.path));
+    final changes = await temp.changes();
     await changes.load();
 
     final first = changes.visible.indexWhere((row) => row.path == 'odd[1].txt');

@@ -227,12 +227,50 @@ class RepoBrowser extends ChangeNotifier {
     return found;
   }
 
-  Future<void> scan() => _scan(empty: false);
+  Future<void> scan() => _start(empty: false);
 
   /// Rescan the current directory; a second request while one runs is folded in.
-  Future<void> rescan() => _scan(empty: true);
+  Future<void> rescan() => _start(empty: true);
+
+  /// The walk that is running, for [idle]; callers may start a scan without
+  /// awaiting it, and tests or `dispose` still have a handle on it.
+  Future<void>? _running;
+  bool _disposed = false;
+
+  /// A request while a walk runs is folded into that walk (it scans again at
+  /// the end), so the handle stays the running one.
+  Future<void> _start({required bool empty}) {
+    final running = _running;
+    if (scanning && running != null) {
+      _again = true;
+      return running;
+    }
+    return _running = _scan(empty: empty);
+  }
+
+  /// Completes when no scan is running any more.
+  Future<void> idle() async {
+    while (_running != null) {
+      final running = _running!;
+      await running;
+      if (identical(_running, running)) _running = null;
+    }
+  }
+
+  /// A running walk stops at its next directory and redraws nothing.
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  @override
+  void notifyListeners() {
+    if (!_disposed) super.notifyListeners();
+  }
 
   Future<void> _scan({required bool empty}) async {
+    if (_disposed) return;
     if (scanning) {
       _again = true;
       return;
@@ -251,7 +289,7 @@ class RepoBrowser extends ChangeNotifier {
     var stopped = false;
 
     final queue = <_Node>[_Node(directory, 0, maxDepth)];
-    while (queue.isNotEmpty) {
+    while (queue.isNotEmpty && !_disposed) {
       final node = queue.removeAt(0);
       if (++visited > maxDirectories) {
         stopped = true;

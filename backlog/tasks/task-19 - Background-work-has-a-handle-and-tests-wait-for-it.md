@@ -1,7 +1,7 @@
 ---
 id: task-19
 title: Background work has a handle, and tests wait for it
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-17'
 labels:
@@ -45,7 +45,19 @@ Fix:
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 `test/changes_test.dart` passes 20 runs in a row
-- [ ] #2 after `make test`, the number of `purrage_*` folders in `%TEMP%` is unchanged (the Makefile target checks and says so)
-- [ ] #3 no `unawaited(...)` in `lib/` without a handle that a test or `dispose` can wait on
+- [x] #1 `test/changes_test.dart` passes 20 runs in a row
+- [x] #2 after `make test`, the number of `purrage_*` folders in `%TEMP%` is unchanged (the Makefile target checks and says so)
+- [x] #3 no `unawaited(...)` in `lib/` without a handle that a test or `dispose` can wait on
 <!-- AC:END -->
+
+## Notes
+
+- `Changes.idle()`, `RepoBrowser.idle()`, `IgnorePaneState.idle()` and `ShellState.idle()` are the
+  handles; `dispose()` on each stops further work and redraws, and `RepoBrowser` is now disposed
+  by the shell (it was not). A second scan request while one runs returns the running scan's
+  future. Cancel for the walk itself is left to task-6.
+- Tests use `temp.changes()` / `watch(changes)` from `test/support/temp_repo.dart`, which register
+  `changes.idle` after the folder's delete, so it runs first. `deleteWithRetry` retries errno
+  32/5/145; `test/flutter_test_config.dart` deletes what a file left and fails it if one stays.
+- 20 runs of `changes_test.dart`: 0 failures. `make test`: 110 passed, count unchanged.
+- The Makefile's count is global: another worktree running tests at the same time can move it.

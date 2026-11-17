@@ -97,7 +97,37 @@ class IgnorePaneState extends ChangeNotifier {
   }
 
   /// Explain [repoRelativePath] against the ignore files.
-  Future<void> focusPath(String repoRelativePath) async {
+  ///
+  /// The shell starts this from a timer without awaiting it, so the probe is
+  /// kept and [idle] can wait for it.
+  Future<void> focusPath(String repoRelativePath) {
+    final probe = _focusPath(repoRelativePath);
+    _probes.add(probe);
+    return probe.whenComplete(() => _probes.remove(probe));
+  }
+
+  final Set<Future<void>> _probes = {};
+  bool _disposed = false;
+
+  /// Completes when no `check-ignore` probe is running.
+  Future<void> idle() async {
+    while (_probes.isNotEmpty) {
+      await Future.wait([..._probes]);
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  @override
+  void notifyListeners() {
+    if (!_disposed) super.notifyListeners();
+  }
+
+  Future<void> _focusPath(String repoRelativePath) async {
     if (_focusedPath == repoRelativePath && _match != null) return;
     _focusedPath = repoRelativePath;
     try {

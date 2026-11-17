@@ -1,9 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:purrage/state/changes.dart';
 import 'package:purrage/state/ignore_rules.dart';
-import 'package:purrage/state/repo.dart';
 
 import 'support/temp_repo.dart';
 
@@ -12,7 +10,7 @@ void main() {
     test('the quick ignore writes the literal path into the root .gitignore', () async {
       final temp = await TempRepo.make();
       await temp.write('notes.md', 'x\n');
-      final changes = Changes(await Repo.open(temp.path));
+      final changes = await temp.changes();
       await changes.load();
       expect(changes.visible.single.path, 'notes.md');
 
@@ -27,7 +25,7 @@ void main() {
     test('the dialog target writes its rule and the path is gone from the list', () async {
       final temp = await TempRepo.make();
       await temp.write('lib/generated/a.g.dart', 'x\n');
-      final changes = Changes(await Repo.open(temp.path));
+      final changes = await temp.changes();
       await changes.load();
       expect(changes.visible.single.path, 'lib/generated/a.g.dart');
 
@@ -46,7 +44,7 @@ void main() {
     test('a rule that would never match is refused, not written', () async {
       final temp = await TempRepo.make();
       await temp.write('Makefile', 'x\n');
-      final changes = Changes(await Repo.open(temp.path));
+      final changes = await temp.changes();
       await changes.load();
       final root = changes.rootTarget;
       final problem = await changes.ignoreSelected(scope: IgnoreScope.extension, target: root);
@@ -58,7 +56,7 @@ void main() {
     test('every target path is shown with forward slashes', () async {
       final temp = await TempRepo.make();
       await temp.write('notes.md', 'x\n');
-      final changes = Changes(await Repo.open(temp.path));
+      final changes = await temp.changes();
       await changes.load();
       final targets = await changes.ignoreTargets();
       expect(targets, isNotEmpty);

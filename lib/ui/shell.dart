@@ -85,13 +85,31 @@ class ShellState extends State<Shell> {
     super.initState();
     changes.addListener(onChangesChanged);
     browser = RepoBrowser(startDirectory: repo.path, onReport: logScan);
-    loadEverything();
+    firstLoad = loadEverything();
     // The Browse list is wanted as soon as the window is up, so it scans in the
-    // background rather than on the frame that shows the changes.
+    // background rather than on the frame that shows the changes; `idle()` has
+    // the handle.
     unawaited(browser.scan());
-    prefs.load().then((_) {
-      if (mounted) setState(() => editorCommand = prefs.editorCommand);
-    });
+    prefsLoaded = _loadPrefs();
+  }
+
+  /// The startup jobs nobody awaits, kept so [idle] can.
+  late final Future<void> firstLoad;
+  late final Future<void> prefsLoaded;
+
+  Future<void> _loadPrefs() async {
+    await prefs.load();
+    if (mounted) setState(() => editorCommand = prefs.editorCommand);
+  }
+
+  /// Completes when the background work the shell started is done: the first
+  /// load, the Browse scan, the settings, the nested probe and the ignore probe.
+  Future<void> idle() async {
+    await firstLoad;
+    await prefsLoaded;
+    await browser.idle();
+    await changes.idle();
+    await ignorePane.idle();
   }
 
   /// Every scan writes one console row with its cost and its worst listings, so
@@ -175,6 +193,7 @@ class ShellState extends State<Shell> {
     changes.removeListener(onChangesChanged);
     ignoreProbe?.cancel();
     ignorePane.dispose();
+    browser.dispose();
     notices.dispose();
     if (widget.console == null) console.dispose();
     changes.dispose();
