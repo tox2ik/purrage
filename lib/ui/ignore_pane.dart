@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../state/ignore_files.dart';
+import 'app_keys.dart';
 import 'widgets.dart';
 
 /// The read-only `.gitignore` pane: a rail of every ignore file, the selected
@@ -11,11 +12,18 @@ class IgnorePane extends StatelessWidget {
     required this.state,
     required this.onOpenInEditor,
     required this.onNewHere,
+    this.railFocus,
+    this.linesFocus,
   });
 
   final IgnorePaneState state;
   final VoidCallback onOpenInEditor;
   final VoidCallback onNewHere;
+
+  /// The two Tab stops of the pane: the file rail (j/k pick a file) and the
+  /// lines (j/k scroll). Without them the pane takes no keys.
+  final FocusNode? railFocus;
+  final FocusNode? linesFocus;
 
   @override
   Widget build(BuildContext context) {
@@ -24,41 +32,36 @@ class IgnorePane extends StatelessWidget {
       builder: (context, _) => Column(
         children: [
           if (state.error != null) _ErrorLine(message: state.error!),
-          Expanded(
-            child: _Body(
-              state: state,
-              onOpenInEditor: onOpenInEditor,
-              onNewHere: onNewHere,
-            ),
-          ),
+          Expanded(child: _body()),
         ],
       ),
     );
   }
-}
 
-class _Body extends StatelessWidget {
-  const _Body({required this.state, required this.onOpenInEditor, required this.onNewHere});
-
-  final IgnorePaneState state;
-  final VoidCallback onOpenInEditor;
-  final VoidCallback onNewHere;
-
-  @override
-  Widget build(BuildContext context) => Row(
+  Widget _body() => Row(
         children: [
-          SizedBox(width: 180, child: _FileRail(state: state)),
+          SizedBox(width: 180, child: _keys(railFocus, _railActions, _FileRail(state: state))),
           const VerticalDivider(width: 1),
           Expanded(
             child: _Detail(
               state: state,
+              linesFocus: linesFocus,
               onOpenInEditor: onOpenInEditor,
               onNewHere: onNewHere,
             ),
           ),
         ],
       );
+
+  Map<Type, Action<Intent>> get _railActions => {
+        MoveIntent: CallbackAction<MoveIntent>(onInvoke: (intent) => state.selectBy(intent.delta)),
+      };
 }
+
+/// [child] with the motion keys of [actions] while [node] has the keyboard.
+Widget _keys(FocusNode? node, Map<Type, Action<Intent>> actions, Widget child) => node == null
+    ? child
+    : KeyScope(bindings: motionBindings, actions: actions, focusNode: node, child: child);
 
 /// The narrow rail: one entry per discovered ignore file, named by its folder.
 class _FileRail extends StatelessWidget {
@@ -124,9 +127,15 @@ class _RailItem extends StatelessWidget {
 }
 
 class _Detail extends StatelessWidget {
-  const _Detail({required this.state, required this.onOpenInEditor, required this.onNewHere});
+  const _Detail({
+    required this.state,
+    required this.linesFocus,
+    required this.onOpenInEditor,
+    required this.onNewHere,
+  });
 
   final IgnorePaneState state;
+  final FocusNode? linesFocus;
   final VoidCallback onOpenInEditor;
   final VoidCallback onNewHere;
 
@@ -135,7 +144,7 @@ class _Detail extends StatelessWidget {
         children: [
           _Header(state: state, onOpenInEditor: onOpenInEditor, onNewHere: onNewHere),
           const Divider(height: 1),
-          Expanded(child: _Lines(state: state)),
+          Expanded(child: _Lines(state: state, focusNode: linesFocus)),
         ],
       );
 }
@@ -214,19 +223,47 @@ class _TitleRow extends StatelessWidget {
 }
 
 /// The selected file's lines, one row each, with the matching line tinted.
-class _Lines extends StatelessWidget {
-  const _Lines({required this.state});
+class _Lines extends StatefulWidget {
+  const _Lines({required this.state, required this.focusNode});
 
   final IgnorePaneState state;
+  final FocusNode? focusNode;
+
+  @override
+  State<_Lines> createState() => _LinesState();
+}
+
+class _LinesState extends State<_Lines> {
+  final ScrollController scroll = ScrollController();
+
+  /// One line is about 20 px; motion keys scroll by lines, clamped.
+  void scrollBy(MoveIntent intent) {
+    if (!scroll.hasClients) return;
+    final position = scroll.position;
+    final target = position.pixels + intent.delta.clamp(-1 << 20, 1 << 20) * 20.0;
+    scroll.jumpTo(target.clamp(position.minScrollExtent, position.maxScrollExtent));
+  }
+
+  @override
+  void dispose() {
+    scroll.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final file = state.selected;
+    final actions = {MoveIntent: CallbackAction<MoveIntent>(onInvoke: scrollBy)};
+    return _keys(widget.focusNode, actions, _list());
+  }
+
+  Widget _list() {
+    final file = widget.state.selected;
     if (file == null || file.lines.isEmpty) {
       return const Center(child: Text('nothing in this file'));
     }
-    final matchLine = state.matchLine;
+    final matchLine = widget.state.matchLine;
     return ListView.builder(
+      controller: scroll,
       itemCount: file.lines.length,
       itemBuilder: (context, index) => _Line(
         number: index + 1,

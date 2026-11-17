@@ -1,21 +1,34 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../state/console.dart';
+import '../state/list_cursor.dart';
+import 'app_keys.dart';
 import 'widgets.dart';
 
 /// The Console mode: every failed user action, newest first, each with its
 /// detail — origin, parameters, command line, code, tool text.
 class ConsoleView extends StatefulWidget {
-  const ConsoleView({super.key, required this.log});
+  const ConsoleView({super.key, required this.log, required this.focusNode});
 
   final ConsoleLog log;
 
+  /// The list's keyboard stop; the shell gives it the keyboard on Alt+4.
+  final FocusNode focusNode;
+
   @override
-  State<ConsoleView> createState() => _ConsoleViewState();
+  State<ConsoleView> createState() => ConsoleViewState();
 }
 
-class _ConsoleViewState extends State<ConsoleView> {
+class ConsoleViewState extends State<ConsoleView> {
   final Set<int> open = {};
+  final ListCursor cursor = ListCursor();
+
+  @override
+  void dispose() {
+    cursor.dispose();
+    super.dispose();
+  }
 
   bool _isOpen(ConsoleEntry entry) => open.contains(identityHashCode(entry));
 
@@ -25,30 +38,62 @@ class _ConsoleViewState extends State<ConsoleView> {
     setState(() => open.remove(key) || open.add(key));
   }
 
+  ConsoleEntry? get _current {
+    final entries = widget.log.entries;
+    cursor.sync(entries.length);
+    return entries.isEmpty ? null : entries[cursor.index];
+  }
+
+  /// Enter / l: fold or unfold the row under the cursor.
+  void toggleCurrent() {
+    final entry = _current;
+    if (entry != null) _toggle(entry);
+  }
+
+  /// Ctrl+C: the row's detail, as the console shows it, to the clipboard.
+  Future<void> copyCurrent() async {
+    final entry = _current;
+    if (entry == null) return;
+    await Clipboard.setData(ClipboardData(text: '${entry.failure.summary}\n${entry.failure.detail}'));
+  }
+
+  late final Map<Type, Action<Intent>> _actions = {
+    MoveIntent: CallbackAction<MoveIntent>(onInvoke: (intent) => cursor.move(intent.delta)),
+    ActivateIntent: CallbackAction<ActivateIntent>(onInvoke: (_) => toggleCurrent()),
+    CopyIntent: CallbackAction<CopyIntent>(onInvoke: (_) => copyCurrent()),
+  };
+
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: widget.log,
-      builder: (context, _) {
-        final entries = widget.log.entries;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            PaneHeader(
-              title: 'CONSOLE  ${entries.length}',
-              trailing: [
-                SmallButton(
-                  label: 'Clear',
-                  tooltip: 'Clear the log',
-                  onPressed: entries.isEmpty ? null : widget.log.clear,
-                ),
-              ],
+    return KeyScope(
+      bindings: const [...motionBindings, ...consoleBindings],
+      actions: _actions,
+      focusNode: widget.focusNode,
+      child: ListenableBuilder(
+        listenable: Listenable.merge([widget.log, cursor]),
+        builder: (context, _) => _page(widget.log.entries),
+      ),
+    );
+  }
+
+  Widget _page(List<ConsoleEntry> entries) {
+    cursor.sync(entries.length);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        PaneHeader(
+          title: 'CONSOLE  ${entries.length}',
+          trailing: [
+            SmallButton(
+              label: 'Clear',
+              tooltip: 'Clear the log',
+              onPressed: entries.isEmpty ? null : widget.log.clear,
             ),
-            const Divider(height: 1),
-            Expanded(child: _entries(entries)),
           ],
-        );
-      },
+        ),
+        const Divider(height: 1),
+        Expanded(child: _entries(entries)),
+      ],
     );
   }
 
@@ -59,6 +104,7 @@ class _ConsoleViewState extends State<ConsoleView> {
       itemBuilder: (context, index) => _Entry(
         entry: entries[index],
         expanded: _isOpen(entries[index]),
+        focused: index == cursor.index,
         onToggle: () => _toggle(entries[index]),
       ),
     );
@@ -66,21 +112,30 @@ class _ConsoleViewState extends State<ConsoleView> {
 }
 
 class _Entry extends StatelessWidget {
-  const _Entry({required this.entry, required this.expanded, required this.onToggle});
+  const _Entry({
+    required this.entry,
+    required this.expanded,
+    required this.focused,
+    required this.onToggle,
+  });
 
   final ConsoleEntry entry;
   final bool expanded;
+  final bool focused;
   final VoidCallback onToggle;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return HoverRow(
-      tooltip: expanded ? 'Fold the detail' : 'Show the detail',
+      tooltip: expanded ? 'Fold the detail (Enter)' : 'Show the detail (Enter)',
       onTap: onToggle,
-      padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
+      padding: const EdgeInsets.fromLTRB(9, 6, 12, 8),
       decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: scheme.outlineVariant)),
+        border: Border(
+          bottom: BorderSide(color: scheme.outlineVariant),
+          left: BorderSide(width: 3, color: focused ? scheme.primary : Colors.transparent),
+        ),
         color: expanded ? scheme.surfaceContainerHighest : null,
       ),
       child: Column(

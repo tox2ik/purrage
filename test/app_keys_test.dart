@@ -22,14 +22,29 @@ Future<(ShellState, FakeRepo)> openShell(WidgetTester tester) async {
 void main() {
   test('the help table is the bindings, line for line', () {
     final lines = helpLines(allBindings);
-    expect(keyTable.map((help) => help.keys), lines.map((binding) => binding.keys));
-    expect(keyTable.first.what, 'Changes, Browse, Settings, Console, Help');
+    final keyed = keyTable.where((help) => help.keys.isNotEmpty);
+    expect(keyed.map((help) => help.keys), lines.map((binding) => binding.keys));
+    expect(keyed.first.what, 'Changes, Browse, Settings, Console, Help');
+    expect(
+      keyTable.where((help) => help.keys.isEmpty).map((help) => help.what),
+      helpGroups.map((group) => group.$1),
+      reason: 'one title per section',
+    );
   });
 
-  test('every activator sends an intent, and no activator is bound twice', () {
-    final all = [for (final binding in allBindings) ...binding.activators];
+  test('every activator sends an intent, and none is bound twice in one scope', () {
+    final scopes = [
+      [...appBindings, ...plainBindings],
+      [...motionBindings, ...changesBindings],
+      [...motionBindings, ...browseBindings],
+      [...motionBindings, ...consoleBindings],
+      [...motionBindings, ...settingsBindings],
+    ];
+    for (final scope in scopes) {
+      final all = [for (final binding in scope) ...binding.activators];
+      expect(shortcutsOf(scope).length, all.length);
+    }
     final map = shortcutsOf(allBindings);
-    expect(map.length, all.length);
     expect(
       map.values.whereType<ShowModeIntent>().map((intent) => intent.mode).toSet(),
       Mode.values.toSet(),

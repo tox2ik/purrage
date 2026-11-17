@@ -3,20 +3,27 @@ import 'package:flutter/services.dart';
 
 import 'widgets.dart';
 
-/// The filter field at the top of the file list, the way Ops does it: `/` puts
-/// the keyboard here, Esc clears then leaves, Enter, Tab and Down go back to the
-/// list.
+/// The filter field at the top of a list, the way Ops does it: `/` puts the
+/// keyboard here, Esc clears then leaves, Enter and Down go back to the list;
+/// Tab goes on to the next pane like everywhere else.
 class FilterField extends StatelessWidget {
   const FilterField({
     super.key,
     required this.controller,
     required this.focusNode,
     required this.onChanged,
+    this.onDone,
   });
 
   final TextEditingController controller;
   final FocusNode focusNode;
   final ValueChanged<String> onChanged;
+
+  /// Where the keyboard goes when the field is left (the list); without it
+  /// the field just lets go.
+  final VoidCallback? onDone;
+
+  void _leave() => (onDone ?? focusNode.unfocus)();
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +44,7 @@ class FilterField extends StatelessWidget {
             hintText: 'Filter (/)',
           ),
           onChanged: onChanged,
-          onSubmitted: (_) => focusNode.unfocus(),
+          onSubmitted: (_) => _leave(),
         ),
       ),
     );
@@ -48,7 +55,7 @@ class FilterField extends StatelessWidget {
     switch (event.logicalKey) {
       case LogicalKeyboardKey.escape:
         if (controller.text.isEmpty) {
-          focusNode.unfocus();
+          _leave();
         } else {
           controller.clear();
           onChanged('');
@@ -56,8 +63,7 @@ class FilterField extends StatelessWidget {
         return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowDown:
       case LogicalKeyboardKey.enter:
-      case LogicalKeyboardKey.tab:
-        focusNode.unfocus();
+        _leave();
         return KeyEventResult.handled;
       default:
         return KeyEventResult.ignored;

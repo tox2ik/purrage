@@ -186,7 +186,7 @@ The ignore pane becomes a list of `.gitignore` files, not one file:
 
 - Modes: `Alt+1` Changes, `Alt+2` Browse, `Alt+3` Settings, `Alt+4` Console, `Alt+5` Help; `Alt+]` /
   `Alt+[` cycle; `?` opens Help.
-- Motion: Up/Down, `j`/`k`, and WASD via the shared `navKey(event)`; never bound per handler.
+- Motion: Up/Down, `j`/`k`, and WASD from the one `motionBindings` list; never bound per handler.
 - Selection: `Shift`+Up/Down grows the highlight from the anchor, one row per press; `Ctrl+Enter`
   turns the cursor row's highlight on or off. The highlighted rows are what every action changes,
   keyboard or mouse. A success says nothing: the row moving between sections is the feedback. A
@@ -195,8 +195,22 @@ The ignore pane becomes a list of `.gitignore` files, not one file:
 - Actions: `space` or `a` track (`git add`), `u` untrack, `i` ignore with the literal path, `Shift+I` the ignore
   dialog, `e` open file, `E` open `.gitignore`, `c` commit, `r` / `F5` / `Ctrl+R` re-read the state,
   `/` or `Ctrl+F` filter, `Esc` close.
-- Two-key commands go through `KeySequence`; plain keys are ignored while a text field has
-  focus; every key is also listed in the Help table.
+- Every list (Changes, Browse, Console, Settings, the ignore rail): `Home` / `End`, `PageUp` /
+  `PageDown` (15 rows until the list has a fixed row height to measure a viewport with); in Changes
+  the `Shift` forms extend the highlight, `Ctrl+A` highlights every row and `Esc` shrinks the
+  highlight to the cursor row.
+- Panes: `Tab` / `Shift+Tab` visit the shown mode's stops in visual order and wrap. Changes:
+  filter, list, ignore rail, ignore lines, commit message. Every mode switch gives the keyboard to
+  that mode's list; the debug bar names each stop.
+- Browse: `Enter` opens the repository under the cursor, `Backspace` / `h` go up one level,
+  `F5` / `Ctrl+R` rescan, `/` / `Ctrl+F` filter the list.
+- Console: `Enter` / `l` unfold or fold the row, `Ctrl+C` copies its summary and detail.
+- Settings: `j` / `k` through the detected editors, `Enter` uses one.
+- Keys with `Ctrl` match the key (`logicalKey`), never `event.character`, which Windows may send
+  as a control character or not at all.
+- Keys are `Shortcuts` / `Actions` / `Intent`s built from the binding lists in
+  `lib/ui/app_keys.dart`; the Help table is generated from the same lists. Plain keys are
+  ignored while a text field has focus.
 
 ## Mouse
 

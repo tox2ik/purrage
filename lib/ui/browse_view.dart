@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../state/browser.dart';
+import 'app_keys.dart';
+import 'filter_field.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
@@ -12,10 +14,14 @@ class BrowseView extends StatefulWidget {
     required this.browser,
     required this.current,
     required this.onOpen,
+    required this.focusNode,
     this.drives = RepoBrowser.drives,
   });
 
   final RepoBrowser browser;
+
+  /// The list's keyboard stop; the shell gives it the keyboard on Alt+2.
+  final FocusNode focusNode;
 
   /// The repository currently open, marked in the list.
   final String current;
@@ -31,6 +37,10 @@ class BrowseView extends StatefulWidget {
 
 class _BrowseViewState extends State<BrowseView> {
   List<String> drives = const [];
+  final TextEditingController filterController = TextEditingController();
+  final FocusNode filterFocus = FocusNode(debugLabel: 'browse filter');
+
+  RepoBrowser get browser => widget.browser;
 
   @override
   void initState() {
@@ -38,24 +48,54 @@ class _BrowseViewState extends State<BrowseView> {
     _probeDrives();
   }
 
+  @override
+  void dispose() {
+    filterController.dispose();
+    filterFocus.dispose();
+    super.dispose();
+  }
+
   Future<void> _probeDrives() async {
     final found = await widget.drives();
     if (mounted) setState(() => drives = found);
   }
 
+  /// Enter: open the repository under the cursor.
+  void openSelected() {
+    final path = browser.selected;
+    if (path != null) widget.onOpen(path);
+  }
+
+  late final Map<Type, Action<Intent>> _actions = {
+    MoveIntent: CallbackAction<MoveIntent>(onInvoke: (intent) => browser.move(intent.delta)),
+    ActivateIntent: CallbackAction<ActivateIntent>(onInvoke: (_) => openSelected()),
+    UpIntent: CallbackAction<UpIntent>(onInvoke: (_) => browser.up()),
+    ReloadIntent: CallbackAction<ReloadIntent>(onInvoke: (_) => browser.rescan()),
+    FocusFilterIntent: CallbackAction<FocusFilterIntent>(onInvoke: (_) => filterFocus.requestFocus()),
+  };
+
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: widget.browser,
-      builder: (context, _) => Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _Header(browser: widget.browser, drives: drives),
-          const Divider(height: 1),
-          Expanded(
-            child: _List(browser: widget.browser, current: widget.current, onOpen: widget.onOpen),
-          ),
-        ],
+    return KeyScope(
+      bindings: const [...motionBindings, ...browseBindings],
+      actions: _actions,
+      focusNode: widget.focusNode,
+      child: ListenableBuilder(
+        listenable: browser,
+        builder: (context, _) => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _Header(browser: browser, drives: drives),
+            FilterField(
+              controller: filterController,
+              focusNode: filterFocus,
+              onChanged: browser.setFilter,
+              onDone: widget.focusNode.requestFocus,
+            ),
+            const Divider(height: 1),
+            Expanded(child: _List(browser: browser, current: widget.current, onOpen: widget.onOpen)),
+          ],
+        ),
       ),
     );
   }
@@ -146,25 +186,25 @@ class _List extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (browser.repos.isEmpty) {
-      return Center(
-        child: Text(
-          browser.scanning ? 'Scanning…' : 'No git repository within five levels.',
-          textAlign: TextAlign.center,
-        ),
-      );
+    final shown = browser.visible;
+    if (shown.isEmpty) {
+      final empty = browser.repos.isNotEmpty
+          ? 'No repository matches "${browser.filter}".'
+          : browser.scanning
+              ? 'Scanning…'
+              : 'No git repository within five levels.';
+      return Center(child: Text(empty, textAlign: TextAlign.center));
     }
     final open = current.replaceAll(r'\', '/').replaceAll(RegExp(r'/+$'), '');
+    final cursor = browser.index;
     return ListView.builder(
-      itemCount: browser.repos.length,
-      itemBuilder: (context, index) {
-        final repo = browser.repos[index];
-        return RepoRow(
-          path: repo,
-          isCurrent: repo.toLowerCase() == open.toLowerCase(),
-          onTap: () => onOpen(repo),
-        );
-      },
+      itemCount: shown.length,
+      itemBuilder: (context, index) => RepoRow(
+        path: shown[index],
+        isCurrent: shown[index].toLowerCase() == open.toLowerCase(),
+        focused: index == cursor,
+        onTap: () => onOpen(shown[index]),
+      ),
     );
   }
 }
@@ -172,11 +212,20 @@ class _List extends StatelessWidget {
 /// One repository in the Browse list: the same two columns as a file row, the
 /// folder right-aligned and the name left-aligned, so names line up.
 class RepoRow extends StatelessWidget {
-  const RepoRow({super.key, required this.path, required this.isCurrent, required this.onTap});
+  const RepoRow({
+    super.key,
+    required this.path,
+    required this.isCurrent,
+    required this.onTap,
+    this.focused = false,
+  });
 
   final String path;
   final bool isCurrent;
   final VoidCallback onTap;
+
+  /// The keyboard cursor is on this row.
+  final bool focused;
 
   @override
   Widget build(BuildContext context) {
@@ -189,9 +238,13 @@ class RepoRow extends StatelessWidget {
       onTap: onTap,
       padding: const EdgeInsets.fromLTRB(9, 2, 12, 2),
       decoration: BoxDecoration(
-        color: isCurrent ? scheme.primaryContainer.withValues(alpha: 0.45) : null,
+        color: isCurrent
+            ? scheme.primaryContainer.withValues(alpha: 0.45)
+            : focused
+                ? scheme.secondaryContainer.withValues(alpha: 0.35)
+                : null,
         border: Border(
-          left: BorderSide(width: 3, color: isCurrent ? scheme.primary : Colors.transparent),
+          left: BorderSide(width: 3, color: isCurrent || focused ? scheme.primary : Colors.transparent),
         ),
       ),
       child: Row(

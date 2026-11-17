@@ -70,6 +70,48 @@ class FocusCommitIntent extends Intent {
   const FocusCommitIntent();
 }
 
+/// Tab / Shift+Tab: the next or previous pane of the shown mode, wrapping.
+class PaneIntent extends Intent {
+  const PaneIntent(this.delta);
+  final int delta;
+}
+
+/// Ctrl+A: every row.
+class SelectAllIntent extends Intent {
+  const SelectAllIntent();
+}
+
+/// Esc in a list: the highlight back to the cursor row.
+class CollapseIntent extends Intent {
+  const CollapseIntent();
+}
+
+// Enter on a row is Flutter's own `ActivateIntent`: open it (Browse), unfold
+// it (Console), use it (Settings).
+
+/// Backspace / h in Browse: the parent directory.
+class UpIntent extends Intent {
+  const UpIntent();
+}
+
+/// Ctrl+C in the Console: the row's detail to the clipboard.
+class CopyIntent extends Intent {
+  const CopyIntent();
+}
+
+/// Rows a PageUp / PageDown moves. A guess at a viewport until task-4 gives
+/// the list a fixed row height to measure with.
+const int pageRows = 15;
+
+/// A jump past either end; motion clamps, so this is Home or End.
+const int farRows = 1 << 30;
+
+/// True while a text field has the keyboard: plain keys must reach it.
+bool typingInField() {
+  final context = FocusManager.instance.primaryFocus?.context;
+  return context != null && context.findAncestorWidgetOfExactType<EditableText>() != null;
+}
+
 // --- bindings --------------------------------------------------------------
 
 /// One line of the key map: what to press, what it sends, and how Help says
@@ -103,10 +145,16 @@ final List<Binding> appBindings = [
     activators: [SingleActivator(LogicalKeyboardKey.bracketLeft, alt: true)],
     intent: CycleModeIntent(-1),
   ),
+  const Binding('Tab / Shift+Tab', 'next / previous pane, wrapping',
+      activators: [SingleActivator(LogicalKeyboardKey.tab)], intent: PaneIntent(1)),
+  const Binding('', '',
+      activators: [SingleActivator(LogicalKeyboardKey.tab, shift: true)], intent: PaneIntent(-1)),
 ];
 
-/// Keys of the Changes list; they do nothing while a text field has focus.
-const List<Binding> changesBindings = [
+/// Motion in every list (Changes, Browse, Console, Settings, the ignore
+/// pane). The Shift forms extend the highlight where there is one (Changes)
+/// and move elsewhere.
+const List<Binding> motionBindings = [
   Binding('j k Up Down (W S)', 'move the cursor', activators: [
     SingleActivator(LogicalKeyboardKey.arrowDown),
     CharacterActivator('j'),
@@ -117,12 +165,38 @@ const List<Binding> changesBindings = [
     CharacterActivator('k'),
     CharacterActivator('w'),
   ], intent: MoveIntent(-1)),
-  Binding('Shift+Up / Shift+Down', 'extend the highlight from the anchor', activators: [
+  Binding('Home / End', 'first / last row',
+      activators: [SingleActivator(LogicalKeyboardKey.home)], intent: MoveIntent(-farRows)),
+  Binding('', '', activators: [SingleActivator(LogicalKeyboardKey.end)], intent: MoveIntent(farRows)),
+  Binding('PageUp / PageDown', 'a page of rows up / down',
+      activators: [SingleActivator(LogicalKeyboardKey.pageUp)], intent: MoveIntent(-pageRows)),
+  Binding('', '', activators: [SingleActivator(LogicalKeyboardKey.pageDown)], intent: MoveIntent(pageRows)),
+  Binding('Shift + any of these', 'extend the highlight from the anchor (Changes)', activators: [
     SingleActivator(LogicalKeyboardKey.arrowDown, shift: true),
   ], intent: MoveIntent(1, extend: true)),
   Binding('', '', activators: [
     SingleActivator(LogicalKeyboardKey.arrowUp, shift: true),
   ], intent: MoveIntent(-1, extend: true)),
+  Binding('', '', activators: [
+    SingleActivator(LogicalKeyboardKey.home, shift: true),
+  ], intent: MoveIntent(-farRows, extend: true)),
+  Binding('', '', activators: [
+    SingleActivator(LogicalKeyboardKey.end, shift: true),
+  ], intent: MoveIntent(farRows, extend: true)),
+  Binding('', '', activators: [
+    SingleActivator(LogicalKeyboardKey.pageUp, shift: true),
+  ], intent: MoveIntent(-pageRows, extend: true)),
+  Binding('', '', activators: [
+    SingleActivator(LogicalKeyboardKey.pageDown, shift: true),
+  ], intent: MoveIntent(pageRows, extend: true)),
+];
+
+/// Keys of the Changes list; they do nothing while a text field has focus.
+const List<Binding> changesBindings = [
+  Binding('Ctrl+A', 'highlight every row',
+      activators: [SingleActivator(LogicalKeyboardKey.keyA, control: true)], intent: SelectAllIntent()),
+  Binding('Esc', 'the highlight back to the cursor row',
+      activators: [SingleActivator(LogicalKeyboardKey.escape)], intent: CollapseIntent()),
   Binding('Ctrl+Enter', 'highlight or un-highlight the cursor row',
       activators: [SingleActivator(LogicalKeyboardKey.enter, control: true)], intent: ToggleRowIntent()),
   Binding('space / a', 'track (git add) the highlighted files',
@@ -151,14 +225,58 @@ const List<Binding> changesBindings = [
   Binding('Ctrl+click / Shift+click', 'select one more / select a range'),
 ];
 
+/// Keys of the Browse list.
+const List<Binding> browseBindings = [
+  Binding('Enter', 'open the repository under the cursor',
+      activators: [SingleActivator(LogicalKeyboardKey.enter)], intent: ActivateIntent()),
+  Binding('Backspace / h', 'up one level', activators: [
+    SingleActivator(LogicalKeyboardKey.backspace),
+    CharacterActivator('h'),
+  ], intent: UpIntent()),
+  Binding('F5 / Ctrl+R', 'scan the directory again', activators: [
+    SingleActivator(LogicalKeyboardKey.f5),
+    SingleActivator(LogicalKeyboardKey.keyR, control: true),
+  ], intent: ReloadIntent()),
+  Binding('/ or Ctrl+F', 'filter the list (Esc clears, Enter leaves)', activators: [
+    CharacterActivator('/'),
+    SingleActivator(LogicalKeyboardKey.keyF, control: true),
+  ], intent: FocusFilterIntent()),
+];
+
+/// Keys of the Console list.
+const List<Binding> consoleBindings = [
+  Binding('Enter / l', 'unfold or fold the row', activators: [
+    SingleActivator(LogicalKeyboardKey.enter),
+    CharacterActivator('l'),
+  ], intent: ActivateIntent()),
+  Binding('Ctrl+C', "copy the row's detail",
+      activators: [SingleActivator(LogicalKeyboardKey.keyC, control: true)], intent: CopyIntent()),
+];
+
+/// Keys of the Settings editor list.
+const List<Binding> settingsBindings = [
+  Binding('Enter', 'use the editor under the cursor',
+      activators: [SingleActivator(LogicalKeyboardKey.enter)], intent: ActivateIntent()),
+];
+
 /// Plain keys that work in every mode, unless a text field has focus.
 const List<Binding> plainBindings = [
   Binding('?', 'this list', activators: [CharacterActivator('?')], intent: ShowModeIntent(Mode.help)),
-  Binding('Esc', 'leave the field or the menu'),
+  Binding('Esc (in a field)', 'clear the filter, then leave the field'),
+];
+
+/// The Help mode's sections: a title and its bindings, in the order shown.
+final List<(String, List<Binding>)> helpGroups = [
+  ('Everywhere', [...appBindings, ...plainBindings]),
+  ('Lists', motionBindings),
+  ('Changes', changesBindings),
+  ('Browse', browseBindings),
+  ('Console', consoleBindings),
+  ('Settings', settingsBindings),
 ];
 
 /// Every binding, in the order Help lists them.
-List<Binding> get allBindings => [...appBindings, ...changesBindings, ...plainBindings];
+List<Binding> get allBindings => [for (final (_, bindings) in helpGroups) ...bindings];
 
 /// The `Shortcuts` map of [bindings]; a binding with no intent of its own
 /// (the `Alt+<n>` line) sends one [ShowModeIntent] per activator.
@@ -173,6 +291,49 @@ List<Binding> helpLines(List<Binding> bindings) => [
       for (final binding in bindings)
         if (binding.keys.isNotEmpty) binding,
     ];
+
+/// One mode's or one pane's keys: its [bindings] as `Shortcuts`, its
+/// [actions], and the [focusNode] that has to hold the keyboard for them.
+/// The keys are off while a text field inside has focus.
+class KeyScope extends StatefulWidget {
+  const KeyScope({
+    super.key,
+    required this.bindings,
+    required this.actions,
+    required this.focusNode,
+    required this.child,
+  });
+
+  final List<Binding> bindings;
+  final Map<Type, Action<Intent>> actions;
+  final FocusNode focusNode;
+  final Widget child;
+
+  @override
+  State<KeyScope> createState() => _KeyScopeState();
+}
+
+class _KeyScopeState extends State<KeyScope> {
+  late final ShortcutManager manager = GatedShortcutManager(
+    shortcuts: shortcutsOf(widget.bindings),
+    active: () => !typingInField(),
+  );
+
+  @override
+  void dispose() {
+    manager.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Shortcuts.manager(
+        manager: manager,
+        child: Actions(
+          actions: widget.actions,
+          child: Focus(focusNode: widget.focusNode, child: widget.child),
+        ),
+      );
+}
 
 /// A [ShortcutManager] that can be switched off: the Changes keys are plain
 /// letters, and while a text field has focus they must reach the field.

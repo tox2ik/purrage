@@ -37,16 +37,23 @@ class ShellState extends State<Shell> {
   final FocusNode commitFocus = FocusNode(debugLabel: 'commit message');
   final TextEditingController filterController = TextEditingController();
   final FocusNode filterFocus = FocusNode(debugLabel: 'filter');
+  final FocusNode listFocus = FocusNode(debugLabel: 'file list');
+  final FocusNode railFocus = FocusNode(debugLabel: 'ignore rail');
+  final FocusNode linesFocus = FocusNode(debugLabel: 'ignore lines');
+  final FocusNode browseFocus = FocusNode(debugLabel: 'browse list');
+  final FocusNode settingsFocus = FocusNode(debugLabel: 'editor list');
+  final FocusNode consoleFocus = FocusNode(debugLabel: 'console list');
+  final FocusNode helpFocus = FocusNode(debugLabel: 'help');
   Mode mode = Mode.changes;
 
   /// The first load, for tests that wait on it.
   late final Future<void> started;
 
   /// Plain-letter keys must reach a text field that has focus.
-  bool get typing => commitFocus.hasFocus || filterFocus.hasFocus;
+  bool get typing => typingInField();
 
   late final ShortcutManager _changesKeys = GatedShortcutManager(
-    shortcuts: shortcutsOf(changesBindings),
+    shortcuts: shortcutsOf([...motionBindings, ...changesBindings]),
     active: () => mode == Mode.changes && !typing,
   );
 
@@ -55,11 +62,37 @@ class ShellState extends State<Shell> {
     active: () => !typing,
   );
 
+  /// The Tab stops of each mode, in visual order.
+  List<FocusNode> stops(Mode of) => switch (of) {
+        Mode.changes => [filterFocus, listFocus, railFocus, linesFocus, commitFocus],
+        Mode.browse => [browseFocus],
+        Mode.settings => [settingsFocus],
+        Mode.console => [consoleFocus],
+        Mode.help => [helpFocus],
+      };
+
+  /// The stop that gets the keyboard when a mode is shown.
+  FocusNode home(Mode of) => of == Mode.changes ? listFocus : stops(of).first;
+
   @override
   void initState() {
     super.initState();
     workspace.addListener(_redraw);
     started = workspace.start();
+    _focusAfterFrame(listFocus);
+  }
+
+  /// A mode inside the IndexedStack can take focus once it is the shown one,
+  /// which is after the frame that shows it.
+  void _focusAfterFrame(FocusNode node) =>
+      WidgetsBinding.instance.addPostFrameCallback((_) => mounted ? node.requestFocus() : null);
+
+  /// Tab / Shift+Tab: the next or previous stop of the shown mode, wrapping.
+  void nextPane(int delta) {
+    final order = stops(mode);
+    final at = order.indexWhere((node) => node.hasFocus);
+    final from = at < 0 ? (delta > 0 ? -1 : 0) : at;
+    order[(from + delta) % order.length].requestFocus();
   }
 
   /// Background work started by the workspace; tests await it.
@@ -77,17 +110,20 @@ class ShellState extends State<Shell> {
     commitController.dispose();
     commitFocus.dispose();
     filterController.dispose();
-    filterFocus.dispose();
-    shellFocus.dispose();
+    for (final node in [filterFocus, listFocus, railFocus, linesFocus, browseFocus]) {
+      node.dispose();
+    }
+    for (final node in [settingsFocus, consoleFocus, helpFocus, shellFocus]) {
+      node.dispose();
+    }
     super.dispose();
   }
 
   void show(Mode next) {
     if (next == mode) return;
     setState(() => mode = next);
-    // Leaving Changes takes the keyboard out of the commit field.
-    if (next != Mode.changes) commitFocus.unfocus();
-    shellFocus.requestFocus();
+    // The shown mode gets the keyboard: out of the commit field, into its list.
+    _focusAfterFrame(home(next));
   }
 
   void cycle(int delta) {
@@ -105,6 +141,9 @@ class ShellState extends State<Shell> {
     ShowModeIntent: CallbackAction<ShowModeIntent>(onInvoke: (intent) => show(intent.mode)),
     CycleModeIntent: CallbackAction<CycleModeIntent>(onInvoke: (intent) => cycle(intent.delta)),
     MoveIntent: CallbackAction<MoveIntent>(onInvoke: move),
+    PaneIntent: CallbackAction<PaneIntent>(onInvoke: (intent) => nextPane(intent.delta)),
+    SelectAllIntent: CallbackAction<SelectAllIntent>(onInvoke: (_) => workspace.changes.selectAll()),
+    CollapseIntent: CallbackAction<CollapseIntent>(onInvoke: (_) => workspace.changes.collapseSelection()),
     ToggleRowIntent: CallbackAction<ToggleRowIntent>(onInvoke: (_) => workspace.changes.toggleFocused()),
     TrackIntent: CallbackAction<TrackIntent>(onInvoke: (_) => workspace.track()),
     UntrackIntent: CallbackAction<UntrackIntent>(onInvoke: (_) => workspace.untrack()),
@@ -194,6 +233,9 @@ class ShellState extends State<Shell> {
           onReload: workspace.reloadAll,
           filterController: filterController,
           filterFocus: filterFocus,
+          listFocus: listFocus,
+          railFocus: railFocus,
+          linesFocus: linesFocus,
           ignoreState: workspace.ignorePane,
           onOpenIgnore: workspace.openSelectedIgnore,
           onNewIgnore: workspace.newIgnoreHere,
@@ -204,14 +246,16 @@ class ShellState extends State<Shell> {
           current: workspace.repo.path,
           onOpen: workspace.open,
           drives: workspace.browser.listDrives,
+          focusNode: browseFocus,
         ),
         SettingsView(
           detect: workspace.editors.detect,
           chosenCommand: workspace.editorCommand ?? '',
           onChoose: workspace.chooseEditor,
           onTest: workspace.openTestFile,
+          focusNode: settingsFocus,
         ),
-        ConsoleView(log: workspace.console),
-        const HelpView(),
+        ConsoleView(log: workspace.console, focusNode: consoleFocus),
+        HelpView(focusNode: helpFocus),
       ];
 }

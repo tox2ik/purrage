@@ -316,6 +316,17 @@ class Changes extends ChangeNotifier {
     if (!isSelected(_visible[index])) click(index);
   }
 
+  /// Esc in the list: the highlight shrinks to the cursor row.
+  void collapseSelection() {
+    final row = selected;
+    if (row == null) return;
+    _selection
+      ..clear()
+      ..add(_key(row));
+    _anchor = _index;
+    notifyListeners();
+  }
+
   /// Select every visible row.
   Future<void> selectAll() async {
     _selection

@@ -11,25 +11,34 @@ class KeyHelp {
 }
 
 /// The help table, read from the same bindings the `Shortcuts` are built from
-/// (`app_keys.dart`), so a key and its line cannot drift apart.
+/// (`app_keys.dart`), so a key and its line cannot drift apart. A line with no
+/// keys is a section title.
 final List<KeyHelp> keyTable = [
-  for (final binding in helpLines(allBindings))
-    KeyHelp(binding.keys, binding.what),
+  for (final (title, bindings) in helpGroups) ...[
+    KeyHelp('', title),
+    for (final binding in helpLines(bindings)) KeyHelp(binding.keys, binding.what),
+  ],
 ];
 
 /// The Help mode: the key table, nothing else.
 class HelpView extends StatelessWidget {
-  const HelpView({super.key});
+  const HelpView({super.key, this.focusNode});
+
+  /// The mode's keyboard stop, so the shell can give Help the keyboard.
+  final FocusNode? focusNode;
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Text('Keys', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
-        for (final help in keyTable) _KeyRow(help: help),
-      ],
+    return Focus(
+      focusNode: focusNode,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Text('Keys', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          for (final help in keyTable) _KeyRow(help: help),
+        ],
+      ),
     );
   }
 }
@@ -41,6 +50,12 @@ class _KeyRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (help.keys.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 12, bottom: 4),
+        child: Text(help.what, style: Theme.of(context).textTheme.labelLarge),
+      );
+    }
     final mono = Theme.of(context).textTheme.bodyMedium?.copyWith(fontFamily: 'monospace');
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),

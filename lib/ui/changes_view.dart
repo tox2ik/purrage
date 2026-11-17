@@ -26,7 +26,16 @@ class ChangesView extends StatelessWidget {
     required this.onOpenIgnore,
     required this.onNewIgnore,
     required this.onCommit,
+    required this.listFocus,
+    this.railFocus,
+    this.linesFocus,
   });
+
+  /// The Tab stops besides the two text fields: the list, the ignore rail and
+  /// the ignore lines.
+  final FocusNode listFocus;
+  final FocusNode? railFocus;
+  final FocusNode? linesFocus;
 
   final Changes changes;
   final TextEditingController commitController;
@@ -64,6 +73,7 @@ class ChangesView extends StatelessWidget {
                     onReload: onReload,
                     filterController: filterController,
                     filterFocus: filterFocus,
+                    listFocus: listFocus,
                   ),
                 ),
                 const VerticalDivider(width: 1),
@@ -73,6 +83,8 @@ class ChangesView extends StatelessWidget {
                     state: ignoreState,
                     onOpenInEditor: onOpenIgnore,
                     onNewHere: onNewIgnore,
+                    railFocus: railFocus,
+                    linesFocus: linesFocus,
                   ),
                 ),
               ],

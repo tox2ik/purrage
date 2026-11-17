@@ -140,6 +140,14 @@ class IgnorePaneState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// j / k in the rail: the next or previous file, clamped.
+  void selectBy(int delta) {
+    if (_files.isEmpty) return;
+    final at = _files.indexWhere((file) => file.path == _selectedPath);
+    final next = ((at < 0 ? 0 : at) + delta).clamp(0, _files.length - 1);
+    select(_files[next].path);
+  }
+
   void select(String path) {
     final clean = _relative(path) ?? path;
     if (_selectedPath == clean) return;

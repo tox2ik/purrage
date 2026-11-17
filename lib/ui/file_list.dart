@@ -23,7 +23,12 @@ class FileList extends StatefulWidget {
     required this.onReload,
     required this.filterController,
     required this.filterFocus,
+    required this.listFocus,
   });
+
+  /// The list's keyboard stop: the Changes keys act while it (or the shell)
+  /// has focus.
+  final FocusNode listFocus;
 
   final Changes changes;
   final VoidCallback onIgnore;
@@ -104,13 +109,14 @@ class _FileListState extends State<FileList> {
         controller: widget.filterController,
         focusNode: widget.filterFocus,
         onChanged: changes.setFilter,
+        onDone: widget.listFocus.requestFocus,
       ),
       onReload: widget.onReload,
     );
     return Column(
       children: [
         header,
-        Expanded(child: _body()),
+        Expanded(child: Focus(focusNode: widget.listFocus, child: _body())),
       ],
     );
   }

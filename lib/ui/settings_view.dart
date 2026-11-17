@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../state/editors.dart';
+import '../state/list_cursor.dart';
+import 'app_keys.dart';
 import 'widgets.dart';
 
 /// The Settings mode: which editor was found, which one is in use, and the
@@ -13,6 +15,7 @@ class SettingsView extends StatefulWidget {
     required this.chosenCommand,
     required this.onChoose,
     required this.onTest,
+    required this.focusNode,
   });
 
   /// Find the editors on this machine, best first.
@@ -26,6 +29,9 @@ class SettingsView extends StatefulWidget {
 
   /// Open a file with the current choice, for the Test button.
   final Future<void> Function(String file) onTest;
+
+  /// The editor list's keyboard stop; the shell gives it the keyboard on Alt+3.
+  final FocusNode focusNode;
 
   /// The file the Test button opens.
   static const String testFile = 'PLAN.md';
@@ -59,8 +65,29 @@ class SettingsViewState extends State<SettingsView> {
   @override
   void dispose() {
     command.dispose();
+    cursor.dispose();
     super.dispose();
   }
+
+  /// The keyboard cursor in the detected editors.
+  final ListCursor cursor = ListCursor();
+
+  /// Enter: use the editor under the cursor.
+  void pickCurrent() {
+    cursor.sync(options.length);
+    if (options.isNotEmpty) pickEditor(options[cursor.index]);
+  }
+
+  /// j / k and the rest of the motion keys.
+  void moveCursor(MoveIntent intent) {
+    cursor.sync(options.length);
+    cursor.move(intent.delta);
+  }
+
+  late final Map<Type, Action<Intent>> _actions = {
+    MoveIntent: CallbackAction<MoveIntent>(onInvoke: moveCursor),
+    ActivateIntent: CallbackAction<ActivateIntent>(onInvoke: (_) => pickCurrent()),
+  };
 
   /// Run detection again; with no saved choice, the winner becomes active.
   Future<void> detectEditors() async {
@@ -100,12 +127,22 @@ class SettingsViewState extends State<SettingsView> {
 
   @override
   Widget build(BuildContext context) {
+    return KeyScope(
+      bindings: const [...motionBindings, ...settingsBindings],
+      actions: _actions,
+      focusNode: widget.focusNode,
+      child: ListenableBuilder(listenable: cursor, builder: (context, _) => _page()),
+    );
+  }
+
+  Widget _page() {
+    cursor.sync(options.length);
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         _Header(detecting: detecting, onDetect: detectEditors),
         const SizedBox(height: 12),
-        _DetectedList(options: options, chosen: chosen, onPick: pickEditor),
+        _DetectedList(options: options, chosen: chosen, cursor: cursor.index, onPick: pickEditor),
         const SizedBox(height: 24),
         _CommandEditor(
           controller: command,
@@ -145,11 +182,13 @@ class _DetectedList extends StatelessWidget {
   const _DetectedList({
     required this.options,
     required this.chosen,
+    required this.cursor,
     required this.onPick,
   });
 
   final List<EditorOption> options;
   final String chosen;
+  final int cursor;
   final ValueChanged<EditorOption> onPick;
 
   @override
@@ -160,10 +199,11 @@ class _DetectedList extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (final option in options)
+        for (final (index, option) in options.indexed)
           _EditorRow(
             option: option,
             active: option.command == chosen,
+            focused: index == cursor,
             onPick: () => onPick(option),
           ),
       ],
@@ -175,11 +215,15 @@ class _EditorRow extends StatelessWidget {
   const _EditorRow({
     required this.option,
     required this.active,
+    required this.focused,
     required this.onPick,
   });
 
   final EditorOption option;
   final bool active;
+
+  /// The keyboard cursor is on this row.
+  final bool focused;
   final VoidCallback onPick;
 
   @override
@@ -191,6 +235,7 @@ class _EditorRow extends StatelessWidget {
       child: ListTile(
         dense: true,
         selected: active,
+        tileColor: focused ? scheme.secondaryContainer.withValues(alpha: 0.35) : null,
         onTap: onPick,
         leading: Icon(
           active ? Icons.radio_button_checked : Icons.radio_button_unchecked,

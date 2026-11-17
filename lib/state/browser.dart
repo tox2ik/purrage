@@ -178,6 +178,51 @@ class RepoBrowser extends ChangeNotifier {
   bool scanning = false;
   String? error;
 
+  String _filter = '';
+  int _index = 0;
+
+  /// The `/` filter of the Browse list: a case-insensitive part of the path.
+  String get filter => _filter;
+
+  /// The repositories the list shows: [repos] narrowed by [filter].
+  List<String> get visible {
+    if (_filter.isEmpty) return repos;
+    final needle = _filter.toLowerCase();
+    return [
+      for (final repo in repos)
+        if (repo.toLowerCase().contains(needle)) repo,
+    ];
+  }
+
+  /// The keyboard cursor in [visible], kept inside it.
+  int get index {
+    final count = visible.length;
+    return count == 0 ? 0 : _index.clamp(0, count - 1);
+  }
+
+  /// The repository under the cursor, for Enter.
+  String? get selected {
+    final shown = visible;
+    return shown.isEmpty ? null : shown[index];
+  }
+
+  void setFilter(String query) {
+    if (query == _filter) return;
+    _filter = query;
+    _index = 0;
+    notifyListeners();
+  }
+
+  /// Move the cursor by [delta] rows, clamped; Home/End are large deltas.
+  void move(int delta) {
+    final count = visible.length;
+    if (count == 0) return;
+    final next = (index + delta).clamp(0, count - 1);
+    if (next == index) return;
+    _index = next;
+    notifyListeners();
+  }
+
   /// Set while a scan is running and a new one was asked for.
   bool _again = false;
 

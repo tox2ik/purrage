@@ -65,6 +65,13 @@ final FocusRoles appFocusRoles = FocusRoles(const {
   'filter': 'filter field',
   'commit message': 'commit message',
   'ignore dialog': 'ignore dialog',
+  'ignore rail': 'ignore file rail',
+  'ignore lines': 'ignore file lines',
+  'browse list': 'browse list',
+  'browse filter': 'browse filter field',
+  'console list': 'console list',
+  'editor list': 'editor list',
+  'help': 'help',
 });
 
 /// The debug bar: a bug button in the corner that opens a panel naming the
