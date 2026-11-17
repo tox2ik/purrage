@@ -128,6 +128,10 @@ operator (`& "$(FLUTTER)" …`) because a quoted `.bat` path is not a command in
   endings preserved and **no blank line between rules**. Never write an over-broad glob.
 - `git check-ignore -v` output is `<source>:<line>:<pattern>\t<path>` and `<source>` starts with a
   drive letter on Windows: parse from the right (`^(.*):(\d+):(.*)$`), never at the first colon.
+- **Never pass a trailing slash to `check-ignore`**: `git status` prints an untracked directory as
+  `dir/`, and `git check-ignore -v -- dir/` then answers with an empty pattern and the last line it
+  scanned, i.e. a match that does not exist, while `dir` and `git status` agree it is untracked.
+  Strip the slash first, and treat an empty pattern as "no rule" as well.
 - Never stage with `-a`, never run a command that can lose work without a confirm dialog.
 
 ## Windows quirks this app already handles
