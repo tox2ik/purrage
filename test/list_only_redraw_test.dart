@@ -88,7 +88,7 @@ void main() {
 
   testWidgets('staging a row updates the commit bar count', (tester) async {
     await open(tester);
-    expect(find.text('Commit 0'), findsOneWidget);
+    expect(find.text('Commit'), findsOneWidget);
     final counts = await rebuildsDuring([CommitBar], () async {
       await changes.trackSelected();
       await tester.pump();

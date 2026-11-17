@@ -1,8 +1,28 @@
 #include "flutter_window.h"
 
+#include <flutter/standard_method_codec.h>
+
 #include <optional>
+#include <string>
+#include <variant>
 
 #include "flutter/generated_plugin_registrant.h"
+
+namespace {
+
+// UTF-8 from Dart to the UTF-16 Windows wants.
+std::wstring Utf16FromUtf8(const std::string& text) {
+  if (text.empty()) return std::wstring();
+  int size = ::MultiByteToWideChar(CP_UTF8, 0, text.data(),
+                                   static_cast<int>(text.size()), nullptr, 0);
+  if (size <= 0) return std::wstring();
+  std::wstring wide(size, L'\0');
+  ::MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<int>(text.size()),
+                        wide.data(), size);
+  return wide;
+}
+
+}  // namespace
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
     : project_(project) {}
@@ -25,6 +45,7 @@ bool FlutterWindow::OnCreate() {
     return false;
   }
   RegisterPlugins(flutter_controller_->engine());
+  RegisterWindowChannel();
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
@@ -39,7 +60,37 @@ bool FlutterWindow::OnCreate() {
   return true;
 }
 
+// `setRepository(<folder>)` makes the title `<folder> - <base title>`; an empty
+// folder puts the base title back.
+void FlutterWindow::RegisterWindowChannel() {
+  wchar_t title[256];
+  int length = ::GetWindowTextW(GetHandle(), title, 256);
+  base_title_ = std::wstring(title, length > 0 ? length : 0);
+
+  window_channel_ =
+      std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+          flutter_controller_->engine()->messenger(), "purrage/window",
+          &flutter::StandardMethodCodec::GetInstance());
+  window_channel_->SetMethodCallHandler(
+      [this](const flutter::MethodCall<flutter::EncodableValue>& call,
+             std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>
+                 result) {
+        if (call.method_name() != "setRepository") {
+          result->NotImplemented();
+          return;
+        }
+        const auto* folder = std::get_if<std::string>(call.arguments());
+        std::wstring next = base_title_;
+        if (folder != nullptr && !folder->empty()) {
+          next = Utf16FromUtf8(*folder) + L" - " + base_title_;
+        }
+        ::SetWindowTextW(GetHandle(), next.c_str());
+        result->Success();
+      });
+}
+
 void FlutterWindow::OnDestroy() {
+  window_channel_ = nullptr;
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
   }

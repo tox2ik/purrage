@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../state/workspace.dart';
@@ -11,6 +13,7 @@ import 'ignore_dialog.dart';
 import 'mode_rail.dart';
 import 'notice_bar.dart';
 import 'settings_view.dart';
+import 'window_title.dart';
 
 export 'mode_rail.dart' show Mode;
 
@@ -80,6 +83,18 @@ class ShellState extends State<Shell> {
     workspace.addListener(_redraw);
     started = workspace.start();
     _focusAfterFrame(listFocus);
+    _nameWindow();
+  }
+
+  String? _titled;
+
+  /// `<folder> - Purrage`: the title names the repository shown, and follows a
+  /// Browse switch.
+  void _nameWindow() {
+    final path = workspace.repo.path;
+    if (path == _titled) return;
+    _titled = path;
+    unawaited(WindowTitle.show(path));
   }
 
   /// A mode inside the IndexedStack can take focus once it is the shown one,
@@ -100,8 +115,12 @@ class ShellState extends State<Shell> {
   /// Background work started by the workspace; tests await it.
   Future<void> idle() => workspace.idle();
 
-  /// [Workspace.open] swaps the state the views show.
-  void _redraw() => setState(() {});
+  /// [Workspace.open] swaps the state the views show, and the repository the
+  /// title names.
+  void _redraw() {
+    setState(() {});
+    _nameWindow();
+  }
 
   @override
   void dispose() {
@@ -177,10 +196,13 @@ class ShellState extends State<Shell> {
     await workspace.ignore(scope: choice.scope, target: choice.target);
   }
 
-  /// The Commit button: the field empties when the commit was made.
+  /// The Commit button: the field empties when the commit was made, and the
+  /// keys go back to the list.
   Future<void> commitNow(String summary) async {
     final ok = await workspace.commit(summary);
-    if (ok && mounted) commitController.clear();
+    if (!ok || !mounted) return;
+    commitController.clear();
+    listFocus.requestFocus();
   }
 
   @override

@@ -60,6 +60,9 @@ class IgnoreFakeRepo implements GitRepo {
   Future<void> commit(String summary) async {}
 
   @override
+  Future<String?> currentBranch() async => 'main';
+
+  @override
   Future<String> localExcludePath() async => 'C:/repo/.git/info/exclude';
 
   @override

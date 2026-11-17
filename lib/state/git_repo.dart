@@ -114,6 +114,10 @@ abstract class GitRepo {
   /// Commit the index with one summary line.
   Future<void> commit(String summary);
 
+  /// The checked-out branch (`git branch --show-current`), or null when HEAD is
+  /// detached. Read-only: the app names the branch, it never switches it.
+  Future<String?> currentBranch();
+
 
   /// The rule that ignores [path], if any.
   Future<IgnoreMatch?> checkIgnore(String path);

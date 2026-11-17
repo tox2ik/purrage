@@ -48,6 +48,10 @@ class Changes extends ChangeNotifier {
   LoadState get loadState => _loadState;
   LoadState _loadState = LoadState.loading;
 
+  /// The checked-out branch, read with every load; null when detached or unknown.
+  String? get branch => _branch;
+  String? _branch;
+
   /// The row under the cursor.
   StatusRow? get selected => _visible.isEmpty ? null : _visible[_index];
 
@@ -183,6 +187,17 @@ class Changes extends ChangeNotifier {
 
   bool get canCommit => stagedCount > 0 && !_busy;
 
+  /// Why Commit is disabled, in the words the button and the field show; null
+  /// when it is enabled.
+  String? get commitBlockedReason {
+    if (stagedCount == 0) return 'Nothing is staged: add a file first (space or a)';
+    if (_busy) return 'Wait: git is still answering';
+    return null;
+  }
+
+  /// A summary longer than this gets a quiet counter, git's usual subject limit.
+  static const summaryLimit = 72;
+
   static String _key(StatusRow row) => row.key;
 
   /// Take [rows] as the new list: sorted, with the staged count kept.
@@ -207,6 +222,7 @@ class Changes extends ChangeNotifier {
     final keepPath = selected?.path;
     try {
       final rows = await repo.status();
+      _branch = await _readBranch();
       _takeRows(rows);
       _applyFilter();
       _pruneSelection();
@@ -222,6 +238,15 @@ class Changes extends ChangeNotifier {
       _notify(rows: true, cursor: true, status: true);
     }
     if (!_disposed) _nestedScan = _scanNested(_rows);
+  }
+
+  /// The branch is a label, never a reason for a load to fail.
+  Future<String?> _readBranch() async {
+    try {
+      return await repo.currentBranch();
+    } on Exception {
+      return null;
+    }
   }
 
   /// A reload can drop rows; their keys must not linger in the selection.

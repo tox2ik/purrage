@@ -1,7 +1,7 @@
 ---
 id: task-13
 title: Name the repository, and polish the commit bar
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-11-17'
 labels:
@@ -34,5 +34,29 @@ checkouts of the same project, that is how a commit lands in the wrong one.
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [ ] #1 window title and header name the repository, and update on a Browse switch
-- [ ] #2 commit bar behaviour covered by widget tests (seeded FakeRepo)
+- [x] #2 commit bar behaviour covered by widget tests (seeded FakeRepo)
 <!-- AC:END -->
+
+## Notes
+
+- Header: `RepoHeader` at the top of Changes shows the path and `on <branch>` (or `detached
+  HEAD`). The branch comes from the new `GitRepo.currentBranch()` (`git branch --show-current`),
+  read in `Changes.load()` right after status; it never fails a load.
+- Window title: `lib/ui/window_title.dart` sends the folder over a `purrage/window` channel, and
+  the runner (`windows/runner/flutter_window.cpp`) sets `<folder> - <base title>`, keeping the
+  `(dev)` / `(live)` suffix of a debug build. Shell calls it at start and after a Browse switch.
+  A widget test checks the channel call.
+- **AC #1 is open**: the C++ side is not compiled yet. `flutter build windows --debug` failed
+  because drive C: had 7 MB free and `windows/flutter/ephemeral/flutter_windows.dll` was locked
+  by another process. The Dart side and its tests pass; the build, and a look at the title after
+  a Browse switch, are still to do.
+- Joined onto A+B: the title follows `Workspace` (Shell names the window at start and whenever
+  the workspace's repository changes); the commit bar keeps B's status-only listener and A's
+  `Clickable`; after a commit the keys go to the file list; a refused commit is said by
+  `Workspace.report` (A's `ActionResult.refused`).
+- Commit bar: `Commit` with no count when nothing is staged; the tooltip and the field hint say
+  why it is disabled (`Changes.commitBlockedReason`). Ctrl+Enter commits (Enter still does), a
+  summary over 72 characters shows `73/72`, and after a commit the keys go back to the list.
+  An empty or blocked commit now says why instead of "commit failed".
+- Tests: `test/commit_bar_test.dart` (7 tests) passes. The whole suite has not been run on this
+  branch yet (no disk space).

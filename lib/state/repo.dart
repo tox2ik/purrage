@@ -161,6 +161,14 @@ class Repo implements GitRepo {
     }
   }
 
+  @override
+  Future<String?> currentBranch() async {
+    final result = await _git(['branch', '--show-current'], throwOnError: false);
+    if (result.exitCode != 0) return null;
+    final name = (result.stdout as String).trim();
+    return name.isEmpty ? null : name;
+  }
+
   /// The rule that ignores [path], if any: `null` when nothing matches.
   ///
   /// The path is passed without a trailing slash on purpose: `git check-ignore`

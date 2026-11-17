@@ -2,9 +2,12 @@
 #define RUNNER_FLUTTER_WINDOW_H_
 
 #include <flutter/dart_project.h>
+#include <flutter/encodable_value.h>
 #include <flutter/flutter_view_controller.h>
+#include <flutter/method_channel.h>
 
 #include <memory>
+#include <string>
 
 #include "win32_window.h"
 
@@ -28,6 +31,14 @@ class FlutterWindow : public Win32Window {
 
   // The Flutter instance hosted by this window.
   std::unique_ptr<flutter::FlutterViewController> flutter_controller_;
+
+  // `purrage/window`: the app names the repository it shows in the title.
+  std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> window_channel_;
+
+  // The title the window was created with ("Purrage", or "Purrage (dev)").
+  std::wstring base_title_;
+
+  void RegisterWindowChannel();
 };
 
 #endif  // RUNNER_FLUTTER_WINDOW_H_

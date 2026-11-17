@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 
 import '../state/changes.dart';
 import '../state/ignore_files.dart';
+import '../state/modes.dart';
 import '../state/pane_layout.dart';
 import '../state/status.dart';
 import 'commit_bar.dart';
 import 'file_list.dart';
 import 'ignore_pane.dart';
 import 'resizable_pane.dart';
+import 'theme.dart';
 import 'widgets.dart';
 
 /// The Changes mode: the file list, the commit bar across the bottom.
@@ -72,6 +74,8 @@ class ChangesView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
+        RepoHeader(changes: changes),
+        const Divider(height: 1),
         _ErrorBanner(changes: changes),
         Expanded(
           child: Row(
@@ -116,6 +120,47 @@ class ChangesView extends StatelessWidget {
         linesFocus: linesFocus,
         onOpenFile: onOpenIgnoreFile,
       );
+}
+
+/// Which repository this is: its path and, read-only, its branch. After a
+/// Browse switch this line is what says the list belongs to another checkout.
+/// Listens to the status (a load reads the branch with it).
+class RepoHeader extends StatelessWidget {
+  const RepoHeader({super.key, required this.changes});
+
+  final Changes changes;
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+        listenable: changes.status,
+        builder: (context, _) => _RepoLine(path: changes.repo.path, branch: changes.branch),
+      );
+}
+
+class _RepoLine extends StatelessWidget {
+  const _RepoLine({required this.path, required this.branch});
+
+  final String path;
+  final String? branch;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(T.gap12, T.gap6, T.gap12, T.gap6),
+      child: Row(
+        children: [
+          Flexible(
+            child: Tooltip(
+              message: 'The repository shown here; ${Mode.browse.named} opens another',
+              child: SelectableText(path, maxLines: 1, style: T.body),
+            ),
+          ),
+          const SizedBox(width: T.gap12),
+          Text(branch == null ? 'detached HEAD' : 'on $branch', style: T.small),
+        ],
+      ),
+    );
+  }
 }
 
 /// The ignore pane on the right: resizable by its edge, hidden on a narrow

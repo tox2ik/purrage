@@ -85,6 +85,9 @@ class FakeRepo implements GitRepo {
     ];
   }
 
+  /// Every summary committed, in order.
+  final List<String> commits = [];
+
   @override
   Future<void> commit(String summary) async {
     await _enter('commit');
@@ -92,8 +95,12 @@ class FakeRepo implements GitRepo {
     rows = const [];
   }
 
-  /// Every summary committed.
-  final List<String> commits = [];
+  /// What `currentBranch()` answers; null is a detached HEAD.
+  String? branch = 'main';
+
+  @override
+  Future<String?> currentBranch() async => branch;
+
 
   /// Paths a test says are already ignored, with the rule that does it.
   final Map<String, IgnoreMatch> ignored = {};
