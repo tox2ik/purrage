@@ -150,24 +150,40 @@ class Changes extends ChangeNotifier {
     if (!_disposed) super.notifyListeners();
   }
 
+  /// The highlighted rows, in list order. Built by walking the list, so only an
+  /// action asks for it; a redraw asks [isSelected] per visible tile.
   List<StatusRow> get selectedRows => [
         for (final row in _visible)
           if (isSelected(row)) row,
       ];
 
-  int get selectionCount => selectedRows.length;
+  /// The selection only ever holds keys of visible rows (a reload prunes it, a
+  /// filter clears it), so its size is the count.
+  int get selectionCount => _selection.length;
 
-  bool isSelected(StatusRow row) => _selection.contains(_key(row));
+  bool isSelected(StatusRow row) => _selection.contains(row.key);
 
-  /// Rows of one section, in display order.
-  List<StatusRow> section(Section section) =>
-      _visible.where((row) => row.section == section).toList();
+  /// The flat list the view walks: a header per non-empty section, then its
+  /// rows. Rebuilt when the rows or the filter change, never on a cursor move.
+  List<ListItem> get items => _items;
+  List<ListItem> _items = const [];
 
-  int get stagedCount => _rows.where((row) => row.section == Section.staged).length;
+  int get stagedCount => _stagedCount;
+  int _stagedCount = 0;
 
   bool get canCommit => stagedCount > 0 && !_busy;
 
-  static String _key(StatusRow row) => '${row.section.index}\u0000${row.path}';
+  static String _key(StatusRow row) => row.key;
+
+  /// Take [rows] as the new list: sorted, with the staged count kept.
+  void _takeRows(List<StatusRow> rows) {
+    _rows = [...rows]..sort(StatusRow.compare);
+    var staged = 0;
+    for (final row in _rows) {
+      if (row.section == Section.staged) staged++;
+    }
+    _stagedCount = staged;
+  }
 
   /// Reload from git, keeping the cursor on the same path when it still exists.
   ///
@@ -181,7 +197,7 @@ class Changes extends ChangeNotifier {
     final keepPath = selected?.path;
     try {
       final rows = await repo.status();
-      _rows = [...rows]..sort(_compare);
+      _takeRows(rows);
       _applyFilter();
       _pruneSelection();
       _index = _indexAfterReload(keepPath);
@@ -215,16 +231,6 @@ class Changes extends ChangeNotifier {
     return _index.clamp(0, _visible.length - 1);
   }
 
-  static int _compare(StatusRow a, StatusRow b) {
-    final bySection = a.section.index.compareTo(b.section.index);
-    if (bySection != 0) return bySection;
-    // The two columns decide the order: folder first, then base name, both
-    // case-insensitive, matching what the eye scans.
-    final byFolder = a.folder.toLowerCase().compareTo(b.folder.toLowerCase());
-    if (byFolder != 0) return byFolder;
-    return a.name.toLowerCase().compareTo(b.name.toLowerCase());
-  }
-
   /// Narrow the list; the cursor goes to the first match and is the selection.
   Future<void> setFilter(String query) async {
     if (query == _filter) return;
@@ -239,6 +245,26 @@ class Changes extends ChangeNotifier {
 
   void _applyFilter() {
     _visible = filterRows(_rows, _filter);
+    _items = _buildItems(_visible);
+  }
+
+  /// Headers and rows in one flat list, with each row's index in [visible].
+  static List<ListItem> _buildItems(List<StatusRow> visible) {
+    final counts = List<int>.filled(Section.values.length, 0);
+    for (final row in visible) {
+      counts[row.section.index]++;
+    }
+    final items = <ListItem>[];
+    Section? current;
+    for (var i = 0; i < visible.length; i++) {
+      final row = visible[i];
+      if (row.section != current) {
+        current = row.section;
+        items.add(HeaderItem(current, counts[current.index]));
+      }
+      items.add(RowItem(row, i));
+    }
+    return items;
   }
 
   /// Move the cursor by [delta] rows; a plain move makes that row the selection.
@@ -748,7 +774,7 @@ class Changes extends ChangeNotifier {
   /// Replace the list with [rows], keeping the filter, the cursor and the
   /// selection coherent, and redraw.
   void _setRows(List<StatusRow> rows) {
-    _rows = [...rows]..sort(_compare);
+    _takeRows(rows);
     _applyFilter();
     _pruneSelection();
     _index = _visible.isEmpty ? 0 : _index.clamp(0, _visible.length - 1);
@@ -763,7 +789,7 @@ class Changes extends ChangeNotifier {
   Future<void> _refresh() async {
     try {
       final rows = await repo.status();
-      final sorted = [...rows]..sort(_compare);
+      final sorted = [...rows]..sort(StatusRow.compare);
       if (_sameRows(sorted, _rows)) return;
       _setRows(sorted);
       _error = null;
@@ -799,6 +825,27 @@ class Changes extends ChangeNotifier {
 
 }
 
+/// One entry of the flat list the view walks: a section header or a row.
+sealed class ListItem {
+  const ListItem();
+}
+
+/// A section's heading, with the number of visible rows under it.
+class HeaderItem extends ListItem {
+  const HeaderItem(this.section, this.count);
+
+  final Section section;
+  final int count;
+}
+
+/// A row, with its index in [Changes.visible] (what the cursor counts).
+class RowItem extends ListItem {
+  const RowItem(this.row, this.index);
+
+  final StatusRow row;
+  final int index;
+}
+
 /// One rule the ignore action is about to write.
 class _IgnorePlan {
   const _IgnorePlan({required this.row, required this.target, required this.pattern});
@@ -817,7 +864,7 @@ class _RowChange {
   final List<StatusRow> removed;
   final List<StatusRow> added;
 
-  static String _key(StatusRow row) => '${row.section.index}\u0000${row.path}';
+  static String _key(StatusRow row) => row.key;
 
   List<StatusRow> applyTo(List<StatusRow> rows) {
     final gone = {for (final row in removed) _key(row)};

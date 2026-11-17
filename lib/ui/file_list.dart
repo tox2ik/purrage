@@ -128,9 +128,9 @@ class _FileListState extends State<FileList> {
     if (changes.visible.isEmpty) {
       return Center(child: Text('No path matches "${changes.filter}".'));
     }
-    // A flat list of headers and rows, built lazily: several hundred paths must
-    // not rebuild every tile for one cursor move.
-    final items = flatItems(changes);
+    // The flat list of headers and rows is built by Changes when the rows
+    // change, and the builder is lazy: a cursor move costs the visible tiles.
+    final items = changes.items;
     return Listener(
       onPointerSignal: _wheel,
       child: ListView.builder(
@@ -141,10 +141,12 @@ class _FileListState extends State<FileList> {
     );
   }
 
-  Widget _item(Object item) {
-    if (item is SectionHeader) return item;
-    final index = (item as RowEntry).index;
-    final row = item.row;
+  Widget _item(ListItem item) => switch (item) {
+        HeaderItem(:final section, :final count) => SectionHeader(section: section, count: count),
+        RowItem(:final row, :final index) => _row(row, index),
+      };
+
+  Widget _row(StatusRow row, int index) {
     return FileRow(
       key: keys[index] ??= GlobalKey(),
       row: row,
@@ -170,22 +172,6 @@ class _FileListState extends State<FileList> {
     if (dy == 0) return;
     GestureBinding.instance.pointerSignalResolver.register(event, (_) => changes.move(dy > 0 ? 5 : -5));
   }
-}
-
-/// The list as the builder walks it: a [SectionHeader] before each non-empty
-/// section, then a [RowEntry] per row with its index in `changes.visible`.
-List<Object> flatItems(Changes changes) {
-  final items = <Object>[];
-  var flat = 0;
-  for (final section in Section.values) {
-    final rows = changes.section(section);
-    if (rows.isEmpty) continue;
-    items.add(SectionHeader(section: section, count: rows.length));
-    for (final row in rows) {
-      items.add(RowEntry(row: row, index: flat++));
-    }
-  }
-  return items;
 }
 
 /// One file row: status letter, folder, the actions, then the name.
@@ -415,10 +401,3 @@ class _Header extends StatelessWidget {
       );
 }
 
-/// One row in the flat list the builder walks.
-class RowEntry {
-  const RowEntry({required this.row, required this.index});
-
-  final StatusRow row;
-  final int index;
-}

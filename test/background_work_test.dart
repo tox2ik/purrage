@@ -25,7 +25,7 @@ class HeldRepo extends FakeRepo {
   Future<IgnoreMatch?> checkIgnore(String path) => ignore.future;
 }
 
-const _rows = [
+final _rows = [
   StatusRow(section: Section.untracked, kind: RowKind.untracked, path: 'lib/', code: '??'),
 ];
 

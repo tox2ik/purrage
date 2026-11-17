@@ -1,7 +1,7 @@
 ---
 id: task-3
 title: Build the row model once per change, not per frame
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-17'
 labels:
@@ -39,8 +39,21 @@ Do instead:
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 a cursor move allocates nothing proportional to the row count (checked with the task-1 measure test at 2,000 rows)
-- [ ] #2 sorting 5,000 rows does no per-comparison string work
-- [ ] #3 `FileList.build` has no loop over rows
-- [ ] #4 existing changes, filter and shell tests still pass unchanged
+- [x] #1 a cursor move allocates nothing proportional to the row count (checked with the task-1 measure test at 2,000 rows)
+- [x] #2 sorting 5,000 rows does no per-comparison string work
+- [x] #3 `FileList.build` has no loop over rows
+- [x] #4 existing changes, filter and shell tests still pass unchanged
 <!-- AC:END -->
+
+## Notes
+
+- `StatusRow` is no longer `const`: `name`, `folder`, `folderLower`, `nameLower`, `pathLower`
+  and `key` are `late final`, computed on first use. Nothing built it as `const`.
+- `StatusRow.compare` replaces `Changes._compare`; the filter reads `pathLower`.
+- `Changes.items` (`HeaderItem` / `RowItem`, sealed `ListItem`) and `stagedCount` are rebuilt in
+  `_applyFilter` / `_takeRows` only. `Changes.section()` and `RowEntry` are gone.
+- `selectionCount` is the selection set's size (it only ever holds visible keys);
+  `selectedRows` is still a walk, asked for by actions only.
+- Measure, 2,000 rows: `changes.move` state stays ~0.0 ms; `changes.move/frame` p50 ~98 ms ->
+  ~90 ms. The rest of the frame is the whole-mode rebuild (task-5) and the GlobalKeys (task-4).
+  The row test checks that a move keeps the identical `items` list.

@@ -12,8 +12,12 @@ enum RowKind { added, modified, deleted, renamed, copied, typeChanged, untracked
 
 /// One line of the list: a path, the section it belongs to, and the two
 /// porcelain columns it came from.
+///
+/// What the list and the sort read on every frame or comparison ([name],
+/// [folder], their lower-case forms, [key]) is computed once per row, the first
+/// time it is asked for, never per call.
 class StatusRow {
-  const StatusRow({
+  StatusRow({
     required this.section,
     required this.kind,
     required this.path,
@@ -38,18 +42,46 @@ class StatusRow {
   bool get isConflict => section == Section.conflicts;
 
   /// The name shown in the list: the last segment, with a slash for folders.
-  String get name {
-    final trimmed = path.endsWith('/') ? path.substring(0, path.length - 1) : path;
-    final slash = trimmed.lastIndexOf('/');
-    final base = slash < 0 ? trimmed : trimmed.substring(slash + 1);
-    return path.endsWith('/') ? '$base/' : base;
-  }
+  late final String name = _name();
 
   /// The folder shown after the name, or an empty string at the root.
-  String get folder {
-    final trimmed = path.endsWith('/') ? path.substring(0, path.length - 1) : path;
+  late final String folder = _folder();
+
+  /// [folder] and [name] lower-cased, for the case-insensitive sort.
+  late final String folderLower = folder.toLowerCase();
+  late final String nameLower = name.toLowerCase();
+
+  /// [path] lower-cased, for the filter.
+  late final String pathLower = path.toLowerCase();
+
+  /// Identity in the selection: the same path can be a staged and a changed row.
+  late final String key = '${section.index}\u0000$path';
+
+  /// True for a directory row: git prints those with a trailing slash.
+  bool get isDirectory => path.endsWith('/');
+
+  String _name() {
+    final trimmed = isDirectory ? path.substring(0, path.length - 1) : path;
+    final slash = trimmed.lastIndexOf('/');
+    final base = slash < 0 ? trimmed : trimmed.substring(slash + 1);
+    return isDirectory ? '$base/' : base;
+  }
+
+  String _folder() {
+    final trimmed = isDirectory ? path.substring(0, path.length - 1) : path;
     final slash = trimmed.lastIndexOf('/');
     return slash < 0 ? '' : trimmed.substring(0, slash);
+  }
+
+  /// The list order: section, then folder, then base name, both
+  /// case-insensitive, matching what the eye scans. Compares the cached
+  /// lower-case strings; nothing is allocated per comparison.
+  static int compare(StatusRow a, StatusRow b) {
+    final bySection = a.section.index.compareTo(b.section.index);
+    if (bySection != 0) return bySection;
+    final byFolder = a.folderLower.compareTo(b.folderLower);
+    if (byFolder != 0) return byFolder;
+    return a.nameLower.compareTo(b.nameLower);
   }
 
   @override
@@ -144,6 +176,6 @@ List<StatusRow> filterRows(List<StatusRow> rows, String query) {
   if (needle.isEmpty) return rows;
   return [
     for (final row in rows)
-      if (row.path.toLowerCase().contains(needle)) row,
+      if (row.pathLower.contains(needle)) row,
   ];
 }

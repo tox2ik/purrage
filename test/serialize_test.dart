@@ -86,7 +86,7 @@ void main() {
 
   test('a failed untrack brings back exactly its rows', () async {
     final repo = FakeRepo([
-      const StatusRow(section: Section.staged, kind: RowKind.added, path: 'a.txt', code: 'A '),
+      StatusRow(section: Section.staged, kind: RowKind.added, path: 'a.txt', code: 'A '),
       untracked('b.txt'),
     ]);
     final changes = Changes(repo);
