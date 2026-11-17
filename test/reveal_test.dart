@@ -43,7 +43,7 @@ void main() {
 
   testWidgets('the cursor on row 400 of 500 is on screen', (tester) async {
     await open(tester, 500);
-    await changes.move(400);
+    changes.move(400);
     await tester.pump();
     expect(changes.selected!.name, 'f0400.txt');
     expect(cursorOnScreen(tester, changes), isTrue);
@@ -52,7 +52,7 @@ void main() {
 
   testWidgets('a reload that keeps the cursor far down brings it back on screen', (tester) async {
     await open(tester, 500);
-    await changes.move(450);
+    changes.move(450);
     await tester.pump();
     listScroll(tester).jumpTo(0);
     await tester.pump();
@@ -70,7 +70,7 @@ void main() {
     pane = IgnorePaneState(repo);
     await changes.load();
     await pumpChangesView(tester, changes, pane);
-    await changes.click(5);
+    changes.click(5);
     await tester.pump();
 
     repo.rows = numberedRows(500);
@@ -85,14 +85,14 @@ void main() {
   testWidgets('a move inside the viewport does not scroll; past it, the least scroll', (tester) async {
     await open(tester, 500);
     final scroll = listScroll(tester);
-    await changes.move(3);
+    changes.move(3);
     await tester.pump();
     expect(scroll.offset, 0);
 
     // Walk down to the first row below the viewport: the list moves by
     // exactly what it takes to show that row's bottom edge.
     final visibleRows = (scroll.position.viewportDimension - T.sectionHeaderHeight) ~/ T.rowHeight;
-    await changes.move(visibleRows - 3);
+    changes.move(visibleRows - 3);
     await tester.pump();
     final bottom = T.sectionHeaderHeight + (changes.index + 1) * T.rowHeight;
     expect(scroll.offset, closeTo(bottom - scroll.position.viewportDimension, 0.01));

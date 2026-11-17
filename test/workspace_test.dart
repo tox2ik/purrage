@@ -67,7 +67,7 @@ void main() {
 
     test('a resting cursor asks the ignore pane about its row', () async {
       final (workspace, repo) = await started([untracked('a.txt'), untracked('b.txt')]);
-      await workspace.changes.move(1);
+      workspace.changes.move(1);
       await Future<void>.delayed(Duration.zero);
       await workspace.idle();
       expect(workspace.ignorePane.focusedPath, 'b.txt');

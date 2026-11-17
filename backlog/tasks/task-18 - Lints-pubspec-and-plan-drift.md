@@ -1,7 +1,7 @@
 ---
 id: task-18
 title: Lints, pubspec and plan drift
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-17'
 labels:
@@ -71,10 +71,42 @@ Small things, one commit each. Decisions from the user on 2026-11-17 are marked 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 `make analyze` clean with the five new lints; the six selection methods are `void`
-- [ ] #2 `Repo.commit` uses `git commit -F -`
-- [ ] #3 ignore appends follow the `# Purrage` section rule, with repo tests for the four shapes
-- [ ] #4 PLAN.md, CLAUDE.md and the code agree on commit, ignore append and untrack
-- [ ] #5 the five probes take arguments, keep the old paths as examples, and say which bug they hunted
-- [ ] #6 the two nested-repository repo tests exist and pass; the untrack one checks the folder on disk
+- [x] #1 `make analyze` clean with the five new lints; the six selection methods are `void`
+- [x] #2 `Repo.commit` uses `git commit -F -`
+- [x] #3 ignore appends follow the `# Purrage` section rule, with repo tests for the four shapes
+- [x] #4 PLAN.md, CLAUDE.md and the code agree on commit, ignore append and untrack
+- [x] #5 the five probes take arguments, keep the old paths as examples, and say which bug they hunted
+- [x] #6 the two nested-repository repo tests exist and pass; the untrack one checks the folder on disk
 <!-- AC:END -->
+
+## Notes
+
+- Lints: the five rules are on; only `discarded_futures` fired (shell key handlers, `initState`
+  in shell / browse / settings), each now an explicit `unawaited(...)` or a named async method.
+  The six selection methods are `void`; two tests dropped their `await`.
+- Commit: `Repo.commit` runs `git commit -F -` through the `ProcessRunner` (stdin), like
+  `checkIgnoreAll`; CLAUDE.md "Git" says so. Repo test: a summary starting with `--amend` is
+  committed as text.
+- Joined onto stacks A+B: the selection methods became `void` again on top of B's timing (the
+  tests that awaited them were changed), `appendIgnoreLines` (B's one write per file) folds
+  `IgnoreRules.appendToSection` over its patterns, and the probe and nested test call A/B's
+  `untrack([...])`.
+- Ignore section: `IgnoreRules.appendToSection` (pure, unit-tested) does the work,
+  `Repo.appendIgnoreLine` reads and writes. Repo tests: no section, section at end, section in
+  the middle, CRLF with no final newline, duplicate outside the section.
+- Probes: each requires its arguments (exit 64 with usage otherwise), the old values are in the
+  header as examples, and each says the bug and commit. Coverage exclusion waits for task-16.
+- Nested-repository repo tests: the untrack one makes the staged gitlink differ from HEAD and
+  disk, asserts `git rm --cached -f -- inner` ran, and that the folder, its `.git` and its file
+  (with the newest content) are still on disk.
+- **Formatting, for the user to decide**: `make format` with this SDK (tall style, 80 columns)
+  rewrote 40 files, while the code is written at ~100 columns. That would conflict with every
+  file stacks A and B touch, so I fixed the slips by hand instead (`file_list.dart` `RowEntry`,
+  `ignore_rules.dart` `_folderOf`, `repo.dart` `appendIgnoreLine`) and did not run it. The
+  `changes_view.dart:495` slip does not exist (the file has 135 lines). Suggest: after the stacks
+  are joined, add `formatter: page_width: 100` to `analysis_options.yaml` and run `make format`
+  once, as its own commit.
+- PLAN "Shape of the code": `lib/timing/` and `workspace.dart` belong to task-1 / task-14 (stacks
+  B and A); nothing to add on this stack.
+- CLAUDE.md "never run a command that can lose work without a confirm dialog" now reads "…the
+  app has no confirm dialogs", to agree with the decision.

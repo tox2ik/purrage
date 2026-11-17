@@ -95,13 +95,112 @@ void main() {
       ]);
     });
 
-    test('appendIgnoreLine keeps CRLF and adds no blank line between rules', () async {
+    group('the # Purrage section', () {
+      Future<String> appendTo(String before, List<String> rules) async {
+        final temp = await TempRepo.make();
+        await temp.write('.gitignore', before);
+        final repo = await Repo.open(temp.path);
+        for (final rule in rules) {
+          expect(await repo.appendIgnoreLine('${temp.path}/.gitignore', rule), IgnoreAppend.added);
+        }
+        return File('${temp.path}/.gitignore').readAsString();
+      }
+
+      test('a file without the section gets it at its end', () async {
+        expect(
+          await appendTo('build/\n*.log\n', ['/a.md', '/b.md']),
+          'build/\n*.log\n# Purrage\n/a.md\n/b.md\n',
+        );
+      });
+
+      test('a section at the end grows under its last rule', () async {
+        expect(
+          await appendTo('build/\n# Purrage\n/a.md\n', ['/b.md']),
+          'build/\n# Purrage\n/a.md\n/b.md\n',
+        );
+      });
+
+      test('a section in the middle grows in place, the rules below stay put', () async {
+        expect(
+          await appendTo('build/\n# Purrage\n/a.md\n\n# mine\n*.tmp\n', ['/b.md']),
+          'build/\n# Purrage\n/a.md\n/b.md\n\n# mine\n*.tmp\n',
+        );
+      });
+
+      test('CRLF is kept, and so is a missing final newline', () async {
+        expect(
+          await appendTo('build/\r\n*.log', ['/notes.md', '/b.md']),
+          'build/\r\n*.log\r\n# Purrage\r\n/notes.md\r\n/b.md',
+        );
+      });
+
+      test('a rule present outside the section is a duplicate', () async {
+        final temp = await TempRepo.make();
+        await temp.write('.gitignore', '/a.md\n# Purrage\n/b.md\n');
+        final repo = await Repo.open(temp.path);
+        final path = '${temp.path}/.gitignore';
+        expect(await repo.appendIgnoreLine(path, '/a.md'), IgnoreAppend.duplicate);
+        expect(await File(path).readAsString(), '/a.md\n# Purrage\n/b.md\n');
+      });
+    });
+
+    test('commit takes the summary on stdin, so a leading dash is just text', () async {
       final temp = await TempRepo.make();
-      await temp.write('.gitignore', 'build/\r\n*.log\r\n');
+      await temp.write('a.txt', 'a\n');
       final repo = await Repo.open(temp.path);
-      await repo.appendIgnoreLine('${temp.path}/.gitignore', '/notes.md');
-      final text = await File('${temp.path}/.gitignore').readAsString();
-      expect(text, 'build/\r\n*.log\r\n/notes.md\r\n');
+      await repo.track(['a.txt']);
+      await repo.commit('--amend is not an option here');
+      expect(repo.lastCommand, 'git commit -F -');
+      final log = await temp.git(['log', '--format=%s']);
+      expect(log.stdout.toString().split('\n').first, '--amend is not an option here');
+      expect(log.stdout.toString().trim().split('\n'), hasLength(2));
+    });
+
+    test('ignore an untracked nested repository: the rule is written and honoured', () async {
+      final temp = await TempRepo.make();
+      final inner = await _innerRepo(temp, 'es/inner');
+      final repo = await Repo.open(temp.path);
+      expect((await repo.status()).map((row) => row.path), contains('es/inner/'));
+
+      // git answers this one with an empty pattern; that is not a rule.
+      expect(await repo.checkIgnore('es/inner/'), isNull);
+      expect(
+        await repo.appendIgnoreLine('${temp.path}/.gitignore', '/es/inner/'),
+        IgnoreAppend.added,
+      );
+
+      expect((await repo.status()).map((row) => row.path), ['.gitignore']);
+      expect(await repo.checkIgnore('es/inner/'), isNotNull);
+      expect(await File('${inner.path}/a.txt').exists(), isTrue);
+    });
+
+    test('untrack a nested repository: -f --cached, and the folder stays on disk', () async {
+      final temp = await TempRepo.make();
+      final inner = await _innerRepo(temp, 'inner');
+      await temp.git(['add', 'inner']);
+      await temp.git(['commit', '-m', 'add inner']);
+      // Staged content that differs from HEAD and from the disk.
+      await _innerCommit(inner, 'two');
+      await temp.git(['add', 'inner']);
+      await _innerCommit(inner, 'three');
+
+      final repo = await Repo.open(temp.path);
+      final before = await repo.status();
+      expect(
+        before.where((row) => row.section == Section.staged).map((row) => row.path),
+        contains('inner'),
+      );
+      await repo.untrack(['inner']);
+
+      expect(repo.lastCommand, 'git rm --cached -f -- inner');
+      final after = await repo.status();
+      expect(
+        after.where((row) => row.section == Section.staged && row.kind != RowKind.deleted),
+        isEmpty,
+      );
+      expect(await Directory(inner.path).exists(), isTrue);
+      expect(await Directory('${inner.path}/.git').exists(), isTrue);
+      expect(await File('${inner.path}/a.txt').readAsString(), 'three');
     });
 
     test('a nested rule can be written and git honours it', () async {
@@ -209,7 +308,7 @@ void main() {
         IgnoreAppend.duplicate,
       ]);
       final text = await File('${temp.path}/.gitignore').readAsString();
-      expect(text, 'build/\r\n*.log\r\n/a.txt\r\n/b.txt\r\n');
+      expect(text, 'build/\r\n*.log\r\n# Purrage\r\n/a.txt\r\n/b.txt\r\n');
     });
   });
 
@@ -258,4 +357,31 @@ void main() {
       expect(Repo.argumentBatches(const []), isEmpty);
     });
   });
+}
+
+/// A repository of its own at [relative] inside [temp], with one commit.
+Future<Directory> _innerRepo(TempRepo temp, String relative) async {
+  final inner = Directory('${temp.dir.path}/$relative');
+  await inner.create(recursive: true);
+  await _innerGit(inner, ['init', '-q', '-b', 'main']);
+  await _innerGit(inner, ['config', 'user.email', 'test@example.com']);
+  await _innerGit(inner, ['config', 'user.name', 'test']);
+  await _innerGit(inner, ['config', 'core.fsmonitor', 'false']);
+  await _innerCommit(inner, 'one');
+  return inner;
+}
+
+Future<void> _innerCommit(Directory inner, String text) async {
+  await File('${inner.path}/a.txt').writeAsString(text);
+  await _innerGit(inner, ['add', '-A']);
+  await _innerGit(inner, ['commit', '-qm', text]);
+}
+
+Future<void> _innerGit(Directory dir, List<String> args) async {
+  final result = await Process.run(
+    'git',
+    ['-c', 'core.fsmonitor=false', ...args],
+    workingDirectory: dir.path,
+  );
+  if (result.exitCode != 0) throw StateError('git ${args.join(' ')}: ${result.stderr}');
 }

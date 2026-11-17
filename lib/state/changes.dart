@@ -235,7 +235,7 @@ class Changes extends ChangeNotifier {
   }
 
   /// Narrow the list; the cursor goes to the first match and is the selection.
-  Future<void> setFilter(String query) async {
+  void setFilter(String query) {
     if (query == _filter) return;
     _filter = query;
     _applyFilter();
@@ -289,7 +289,7 @@ class Changes extends ChangeNotifier {
   ///
   /// Timed as `changes.move` (the state and the listeners) and
   /// `changes.move/frame` (until the next frame is on screen).
-  Future<void> move(int delta) async {
+  void move(int delta) {
     if (_visible.isEmpty) return;
     final next = (_index + delta).clamp(0, _visible.length - 1);
     if (next == _index) return;
@@ -307,7 +307,7 @@ class Changes extends ChangeNotifier {
 
   /// Shift+Up / Shift+Down: move the cursor one row and take the range from the
   /// anchor with it, so the earlier rows stay highlighted.
-  Future<void> extendSelection(int delta) async {
+  void extendSelection(int delta) {
     if (_visible.isEmpty) return;
     final next = (_index + delta).clamp(0, _visible.length - 1);
     if (next == _index) return;
@@ -325,7 +325,7 @@ class Changes extends ChangeNotifier {
 
   /// Ctrl+Enter: turn the cursor row's highlight on or off, leaving the rest of
   /// the selection alone.
-  Future<void> toggleFocused() async {
+  void toggleFocused() {
     final row = selected;
     if (row == null) return;
     final key = _key(row);
@@ -336,7 +336,7 @@ class Changes extends ChangeNotifier {
 
   /// A click in the list. [ctrl] toggles one row, [shift] takes the range from
   /// the anchor, a plain click selects just that row.
-  Future<void> click(int index, {bool ctrl = false, bool shift = false}) async {
+  void click(int index, {bool ctrl = false, bool shift = false}) {
     if (_visible.isEmpty) return;
     final next = index.clamp(0, _visible.length - 1);
     final row = _visible[next];
@@ -382,7 +382,7 @@ class Changes extends ChangeNotifier {
   }
 
   /// Select every visible row.
-  Future<void> selectAll() async {
+  void selectAll() {
     _selection
       ..clear()
       ..addAll(_visible.map(_key));
@@ -532,7 +532,7 @@ class Changes extends ChangeNotifier {
             error,
             origin: origin,
             params: {'cwd': repo.path},
-            command: 'git commit -m <summary>',
+            command: 'git commit -F - (summary on stdin)',
           ),
         );
       } finally {
@@ -543,7 +543,7 @@ class Changes extends ChangeNotifier {
       return ActionResult.done(
         'commit',
         origin: origin,
-        command: 'git commit -m ${message.replaceAll('\n', ' ')}',
+        command: 'git commit -F - <<< ${message.replaceAll('\n', ' ')}',
         changed: changed,
       );
     });

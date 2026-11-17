@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../state/editors.dart';
@@ -52,7 +54,7 @@ class SettingsViewState extends State<SettingsView> {
     super.initState();
     chosen = widget.chosenCommand;
     command.text = chosen;
-    detectEditors();
+    unawaited(detectEditors());
   }
 
   @override

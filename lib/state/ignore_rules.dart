@@ -37,6 +37,55 @@ class IgnoreTarget {
 
 /// Pure rule building, so the shapes are unit-tested without git or widgets.
 class IgnoreRules {
+  /// The line that opens the app's own section in an ignore file.
+  static const sectionHeader = '# Purrage';
+
+  /// [existing] with [pattern] added to the `# Purrage` section, or null when the
+  /// rule is already anywhere in the file.
+  ///
+  /// The section is the header and the rules right under it. A new rule goes
+  /// directly after the section's last rule, with no blank line, even when other
+  /// rules follow further down. A file without the section gets the header at
+  /// its end, then the rule; an empty file becomes just the section. The file's
+  /// line endings and its final newline (or the lack of one) are kept.
+  static String? appendToSection(String existing, String pattern) {
+    final lines = _Line.split(existing);
+    if (lines.any((line) => line.text.trim() == pattern)) return null;
+    final eol = existing.contains('\r\n') ? '\r\n' : '\n';
+    if (existing.isEmpty) return '$sectionHeader$eol$pattern$eol';
+
+    final header = lines.indexWhere((line) => line.text.trim() == sectionHeader);
+    if (header < 0) {
+      lines.add(_Line(sectionHeader, eol));
+      lines.add(_Line(pattern, eol));
+    } else {
+      var end = header + 1;
+      while (end < lines.length && _isRule(lines[end].text)) {
+        end++;
+      }
+      lines.insert(end, _Line(pattern, eol));
+    }
+    _keepFinalNewline(lines, existing, eol);
+    return _Line.join(lines);
+  }
+
+  static bool _isRule(String line) {
+    final text = line.trim();
+    return text.isNotEmpty && !text.startsWith('#');
+  }
+
+  /// Every line but the last ends with a newline; the last one ends as the file
+  /// did.
+  static void _keepFinalNewline(List<_Line> lines, String existing, String eol) {
+    for (var i = 0; i < lines.length - 1; i++) {
+      if (lines[i].end.isEmpty) lines[i] = _Line(lines[i].text, eol);
+    }
+    final last = lines.length - 1;
+    final hadNewline = existing.endsWith('\n');
+    if (hadNewline && lines[last].end.isEmpty) lines[last] = _Line(lines[last].text, eol);
+    if (!hadNewline && lines[last].end.isNotEmpty) lines[last] = _Line(lines[last].text, '');
+  }
+
   /// The rule that ignores [path] when written into the file that governs
   /// [targetDir]. Returns null when the scope cannot produce a rule (an
   /// extension scope on a file without an extension).
@@ -122,7 +171,8 @@ class IgnoreRules {
     return folder.isEmpty ? null : folder;
   }
 
-  static String _folderOf(String path) {    final clean = _noTrailingSlash(path);
+  static String _folderOf(String path) {
+    final clean = _noTrailingSlash(path);
     final slash = clean.lastIndexOf('/');
     return slash < 0 ? '' : clean.substring(0, slash);
   }
@@ -155,4 +205,31 @@ class IgnoreRules {
     out = out.replaceAllMapped(RegExp(r' +$'), (match) => r'\ ' * match[0]!.length);
     return out;
   }
+}
+
+/// One line of a text file and the ending it had: `\r\n`, `\n`, or nothing for
+/// a last line without a final newline.
+class _Line {
+  const _Line(this.text, this.end);
+
+  final String text;
+  final String end;
+
+  static List<_Line> split(String text) {
+    final lines = <_Line>[];
+    var start = 0;
+    while (start < text.length) {
+      final newline = text.indexOf('\n', start);
+      if (newline < 0) {
+        lines.add(_Line(text.substring(start), ''));
+        break;
+      }
+      final crlf = newline > start && text[newline - 1] == '\r';
+      lines.add(_Line(text.substring(start, crlf ? newline - 1 : newline), crlf ? '\r\n' : '\n'));
+      start = newline + 1;
+    }
+    return lines;
+  }
+
+  static String join(List<_Line> lines) => lines.map((line) => '${line.text}${line.end}').join();
 }

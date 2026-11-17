@@ -5,6 +5,7 @@ import 'package:git/git.dart';
 
 import 'git_repo.dart';
 import 'hidden_write.dart';
+import 'ignore_rules.dart';
 import 'paths.dart';
 import 'status.dart';
 import 'system.dart';
@@ -143,11 +144,22 @@ class Repo implements GitRepo {
   }
 
   /// Commit the index with one summary line.
+  ///
+  /// The message goes in on stdin (`git commit -F -`), so a summary that starts
+  /// with `-` can never be read as an option. `GitDir.runCommand` has no stdin,
+  /// so this goes through the [ProcessRunner], like [checkIgnoreAll].
   @override
   Future<void> commit(String summary) async {
-    await _git(['commit', '-m', summary]);
+    const args = ['commit', '-F', '-'];
+    lastCommand = 'git ${args.join(' ')}';
+    final result = await runner.run('git', args, cwd: path, stdin: summary, encoding: utf8);
+    if (!result.ok) {
+      throw GitException(
+        'git commit failed (exit ${result.exitCode}):\n${result.stderr}${result.stdout}',
+        detail: 'command: git commit -F - (summary on stdin)\ncwd: $path',
+      );
+    }
   }
-
 
   /// The rule that ignores [path], if any: `null` when nothing matches.
   ///
@@ -288,45 +300,35 @@ class Repo implements GitRepo {
   Future<IgnoreAppend> appendIgnoreLine(String absolutePath, String pattern) async =>
       (await appendIgnoreLines(absolutePath, [pattern])).single;
 
-  /// Append rules to an ignore file with one read and one write, keeping its
-  /// line endings and with no blank line between rules. A rule already present,
-  /// or earlier in [patterns], is left alone; nothing new means no write.
+  /// Add rules to the file's `# Purrage` section with one read and one write:
+  /// each directly after the section's last rule, no blank lines; a file without
+  /// the section gets it at its end. Line endings and the final newline are
+  /// kept. A rule already anywhere in the file, or earlier in [patterns], is
+  /// left alone; nothing new means no write. See [IgnoreRules.appendToSection].
   @override
   Future<List<IgnoreAppend>> appendIgnoreLines(String absolutePath, List<String> patterns) async {
     final file = File(absolutePath);
     final existing = await readTextFile(absolutePath);
-    final present = existing.split(RegExp(r'\r?\n')).map((line) => line.trim()).toSet();
-    final fresh = <String>[];
+    var text = existing;
     final answers = <IgnoreAppend>[];
     for (final pattern in patterns) {
-      final isNew = present.add(pattern);
-      if (isNew) fresh.add(pattern);
-      answers.add(isNew ? IgnoreAppend.added : IgnoreAppend.duplicate);
+      final next = IgnoreRules.appendToSection(text, pattern);
+      answers.add(next == null ? IgnoreAppend.duplicate : IgnoreAppend.added);
+      if (next != null) text = next;
     }
-    if (fresh.isEmpty) return answers;
-
-    final eol = existing.contains('\r\n') ? '\r\n' : '\n';
-    final buffer = StringBuffer(existing);
-    if (existing.isEmpty) {
-      buffer.write('# Purrage$eol');
-    } else if (!existing.endsWith('\n')) {
-      buffer.write(eol);
-    }
-    for (final pattern in fresh) {
-      buffer.write('$pattern$eol');
-    }
+    if (text == existing) return answers;
     await file.parent.create(recursive: true);
-    await writeTextFile(file, buffer.toString());
+    await writeTextFile(file, text);
     return answers;
   }
 
-  /// Create an ignore file that is not there yet, with the Purrage header.
+  /// Create an ignore file that is not there yet: just the `# Purrage` section.
   @override
   Future<void> createIgnoreFile(String absolutePath) async {
     final file = File(absolutePath);
     if (await file.exists()) return;
     await file.parent.create(recursive: true);
-    await writeTextFile(file, '# Purrage\n');
+    await writeTextFile(file, '${IgnoreRules.sectionHeader}\n');
   }
 
   /// A `.git` of its own, file or folder, makes the path a repository: an

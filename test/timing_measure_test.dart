@@ -42,37 +42,37 @@ void main() {
 
     // Cursor moves: down through the list and back.
     for (var i = 0; i < 300; i++) {
-      await changes.move(1);
+      changes.move(1);
     }
     for (var i = 0; i < 300; i++) {
-      await changes.move(-1);
+      changes.move(-1);
     }
 
     // One row at a time, the common case.
     for (var i = 0; i < 20; i++) {
-      await changes.move(rows ~/ 2 - changes.index);
+      changes.move(rows ~/ 2 - changes.index);
       expect((await changes.trackSelected()).ok, isTrue);
     }
 
     // A wide selection: 300 rows from the top of Untracked.
     final untrackedAt = changes.visible.indexWhere((row) => row.section == Section.untracked);
-    await changes.click(untrackedAt);
-    await changes.click(untrackedAt + 299, shift: true);
+    changes.click(untrackedAt);
+    changes.click(untrackedAt + 299, shift: true);
     expect(changes.selectionCount, 300);
     expect((await changes.trackSelected()).ok, isTrue);
 
     // Untrack and ignore, one row and then 300.
-    await changes.click(0);
+    changes.click(0);
     expect((await changes.untrackSelected()).ok, isTrue);
-    await changes.click(0);
-    await changes.click(299, shift: true);
+    changes.click(0);
+    changes.click(299, shift: true);
     expect((await changes.untrackSelected()).ok, isTrue);
     for (var i = 0; i < 10; i++) {
-      await changes.click(changes.visible.length - 1);
+      changes.click(changes.visible.length - 1);
       expect((await changes.ignoreQuick()).ok, isTrue);
     }
-    await changes.click(0);
-    await changes.click(299, shift: true);
+    changes.click(0);
+    changes.click(299, shift: true);
     expect((await changes.ignoreQuick()).ok, isTrue);
 
     // ignore: avoid_print
@@ -92,11 +92,11 @@ void main() {
     // Inside the viewport: no scroll, only the rebuild a move causes.
     for (var round = 0; round < 5; round++) {
       for (var i = 0; i < 10; i++) {
-        await changes.move(1);
+        changes.move(1);
         await tester.pump();
       }
       for (var i = 0; i < 10; i++) {
-        await changes.move(-1);
+        changes.move(-1);
         await tester.pump();
       }
     }
@@ -108,7 +108,7 @@ void main() {
     // Down past the viewport: every move scrolls the list by one row.
     UiTiming.instance.samples.clear();
     for (var i = 0; i < 100; i++) {
-      await changes.move(1);
+      changes.move(1);
       await tester.pump();
     }
     // ignore: avoid_print

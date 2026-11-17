@@ -9,7 +9,7 @@ StatusRow untracked(String path) =>
     StatusRow(section: Section.untracked, kind: RowKind.untracked, path: path, code: '??');
 
 /// Put the cursor (and the selection) on [path].
-Future<void> pick(Changes changes, String path) =>
+void pick(Changes changes, String path) =>
     changes.click(changes.visible.indexWhere((row) => row.path == path));
 
 String where(Changes changes, String path) =>
@@ -22,11 +22,11 @@ void main() {
     await changes.load();
 
     final held = repo.hold('track');
-    await pick(changes, 'a.txt');
+    pick(changes, 'a.txt');
     final track = changes.trackSelected();
     expect(where(changes, 'a.txt'), 'staged', reason: 'optimistic: the row moves at once');
 
-    await pick(changes, 'b.log');
+    pick(changes, 'b.log');
     final ignore = changes.ignoreQuick();
     await pumpEventQueue();
     expect(where(changes, 'b.log'), '', reason: 'the ignored row leaves at once');
@@ -50,9 +50,9 @@ void main() {
     await changes.load();
 
     final held = repo.hold('track');
-    await pick(changes, 'a.txt');
+    pick(changes, 'a.txt');
     final track = changes.trackSelected();
-    await pick(changes, 'b.log');
+    pick(changes, 'b.log');
     final ignore = changes.ignoreQuick();
     held.complete();
 
@@ -73,9 +73,9 @@ void main() {
     repo.calls.clear();
 
     final held = repo.hold('track');
-    await pick(changes, 'a.txt');
+    pick(changes, 'a.txt');
     final first = changes.trackSelected();
-    await pick(changes, 'b.txt');
+    pick(changes, 'b.txt');
     final second = changes.trackSelected();
     held.complete();
     await Future.wait([first, second]);
@@ -93,7 +93,7 @@ void main() {
     await changes.load();
     repo.failures['untrack'] = GitException('pathspec did not match');
 
-    await pick(changes, 'a.txt');
+    pick(changes, 'a.txt');
     final result = await changes.untrackSelected();
     expect(result.ok, isFalse);
     expect(result.failure!.summary, 'could not stop tracking 1 file(s)');
@@ -114,7 +114,7 @@ void main() {
     await track;
     final result = await commit;
     expect(result.ok, isTrue);
-    expect(result.command, 'git commit -m add a');
+    expect(result.command, 'git commit -F - <<< add a');
     expect(repo.commits, ['add a']);
     expect(changes.busy, isFalse);
   });

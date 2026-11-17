@@ -108,4 +108,34 @@ void main() {
       expect(targets.first.isCommitted, isTrue);
     });
   });
+
+  group('IgnoreRules.appendToSection', () {
+    String? add(String text, String rule) => IgnoreRules.appendToSection(text, rule);
+
+    test('an empty file becomes just the section', () {
+      expect(add('', '/a'), '# Purrage\n/a\n');
+    });
+
+    test('no section: the header and the rule go at the end, no blank line', () {
+      expect(add('x\n', '/a'), 'x\n# Purrage\n/a\n');
+    });
+
+    test('an empty section takes its first rule under the header', () {
+      expect(add('x\n# Purrage\n', '/a'), 'x\n# Purrage\n/a\n');
+    });
+
+    test('a section in the middle stops at a blank line or a comment', () {
+      expect(add('# Purrage\n/a\n# other\ny\n', '/b'), '# Purrage\n/a\n/b\n# other\ny\n');
+      expect(add('# Purrage\n/a\n\ny\n', '/b'), '# Purrage\n/a\n/b\n\ny\n');
+    });
+
+    test('CRLF and a missing final newline are kept', () {
+      expect(add('x\r\n# Purrage\r\n/a', '/b'), 'x\r\n# Purrage\r\n/a\r\n/b');
+    });
+
+    test('a rule already anywhere in the file is a duplicate', () {
+      expect(add('/a\n# Purrage\n', '/a'), isNull);
+      expect(add('# Purrage\n  /a  \n', '/a'), isNull);
+    });
+  });
 }

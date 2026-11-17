@@ -23,8 +23,8 @@ Future<Changes> loaded(FakeRepo repo) async {
 }
 
 Future<void> selectAll(Changes changes) async {
-  await changes.click(0);
-  await changes.click(changes.visible.length - 1, shift: true);
+  changes.click(0);
+  changes.click(changes.visible.length - 1, shift: true);
 }
 
 void main() {

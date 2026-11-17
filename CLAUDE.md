@@ -36,7 +36,7 @@ without widgets). Project management lives here too: `backlog/` (Backlog.md task
 - `make live`: the same, on your home folder (`-a "$(USERPROFILE)"`, the app's first argument),
   with everything written to `out/live.log` (a new file per run)
 - `make build`: release build, `build\windows\x64\runner\Release\purrage.exe`
-- `make test`: the whole suite, one file at a time
+- `make test`: the whole suite, two files at a time (`concurrency: 2`)
 - `make analyze`: `flutter analyze`
 - `make format`: `dart format lib test`
 
@@ -129,8 +129,10 @@ operator (`& "$(FLUTTER)" …`) because a quoted `.bat` path is not a command in
 ## Git
 
 - Access goes through the `git` package (`GitDir.runCommand`), never `Process.run('git', ...)`
-  spread around the code; one wrapper in `lib/state/repo.dart`. The one exception is `status()`,
-  which decodes `-z` output as UTF-8 itself.
+  spread around the code; one wrapper in `lib/state/repo.dart`. The calls that need stdin or raw
+  UTF-8 go through its `ProcessRunner` instead: `status()` (`-z` output), `checkIgnoreAll()`
+  (paths on stdin) and `commit()` (the summary on stdin, `git commit -F -`, so a summary can never
+  be read as an option).
 - Status is one call: `git status --porcelain=v1 -z --untracked-files=all --find-renames`; the
   parser in `lib/state/status.dart` owns the format and is unit-tested with fixtures.
 - Ignore rules are written literally and anchored, escaped, deduplicated, with the file's line
@@ -145,7 +147,8 @@ operator (`& "$(FLUTTER)" …`) because a quoted `.bat` path is not a command in
   `dir/`, and `git check-ignore -v -- dir/` then answers with an empty pattern and the last line it
   scanned, i.e. a match that does not exist, while `dir` and `git status` agree it is untracked.
   Strip the slash first, and treat an empty pattern as "no rule" as well.
-- Never stage with `-a`, never run a command that can lose work without a confirm dialog.
+- Never stage with `-a`, never run a command that can lose work: the app has no confirm dialogs,
+  so such a command has no place in it.
 
 ## Windows quirks this app already handles
 

@@ -92,8 +92,8 @@ void main() {
     // Select the two .log rows with Ctrl clicks, the way the list does.
     final first = changes.visible.indexWhere((row) => row.path == 'a.log');
     final second = changes.visible.indexWhere((row) => row.path == 'b.log');
-    await changes.click(first);
-    await changes.click(second, ctrl: true);
+    changes.click(first);
+    changes.click(second, ctrl: true);
     expect(changes.selectionCount, 2);
 
     expect((await changes.ignoreQuick()).problem, isNull);
@@ -182,7 +182,7 @@ void main() {
     await changes.load();
 
     final first = changes.visible.indexWhere((row) => row.path == 'odd[1].txt');
-    await changes.click(first);
+    changes.click(first);
     expect((await changes.ignoreQuick()).problem, isNull);
 
     final text = await File('${temp.path}/.gitignore').readAsString();

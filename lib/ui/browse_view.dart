@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../state/browser.dart';
@@ -45,7 +47,7 @@ class _BrowseViewState extends State<BrowseView> {
   @override
   void initState() {
     super.initState();
-    _probeDrives();
+    unawaited(_probeDrives());
   }
 
   @override

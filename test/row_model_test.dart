@@ -86,12 +86,12 @@ void main() {
     test('a cursor move keeps the same item list; a filter builds a new one', () async {
       final changes = await loaded([for (var i = 0; i < 50; i++) row('f$i.txt')]);
       final items = changes.items;
-      await changes.move(1);
-      await changes.extendSelection(3);
-      await changes.click(10);
+      changes.move(1);
+      changes.extendSelection(3);
+      changes.click(10);
       expect(identical(changes.items, items), isTrue);
 
-      await changes.setFilter('f1');
+      changes.setFilter('f1');
       expect(identical(changes.items, items), isFalse);
       expect(changes.items.whereType<HeaderItem>().single.count, changes.visible.length);
     });
@@ -99,13 +99,13 @@ void main() {
     test('the selection count follows moves, ranges, toggles and filters', () async {
       final changes = await loaded([for (var i = 0; i < 20; i++) row('f$i.txt')]);
       expect(changes.selectionCount, 1);
-      await changes.extendSelection(4);
+      changes.extendSelection(4);
       expect(changes.selectionCount, 5);
-      await changes.toggleFocused();
+      changes.toggleFocused();
       expect(changes.selectionCount, 4);
-      await changes.selectAll();
+      changes.selectAll();
       expect(changes.selectionCount, 20);
-      await changes.setFilter('f1');
+      changes.setFilter('f1');
       expect(changes.selectionCount, 1);
       expect(changes.selectedRows, hasLength(1));
     });
@@ -113,7 +113,7 @@ void main() {
     test('the staged count is kept with the rows', () async {
       final changes = await loaded([row('a.txt'), row('b.txt'), row('c.txt', Section.staged)]);
       expect(changes.stagedCount, 1);
-      await changes.click(1);
+      changes.click(1);
       await changes.trackSelected();
       expect(changes.stagedCount, 2);
     });

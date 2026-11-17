@@ -63,7 +63,7 @@ void main() {
   testWidgets('one j rebuilds the list, and no CommitBar, IgnorePane or filter', (tester) async {
     await open(tester);
     final counts = await rebuildsDuring([CommitBar, IgnorePane, FilterField, FileList], () async {
-      await changes.move(1);
+      changes.move(1);
       await tester.pump();
     });
     expect(counts[CommitBar], 0);
@@ -76,9 +76,9 @@ void main() {
   testWidgets('a click, a range and a toggle rebuild no CommitBar either', (tester) async {
     await open(tester);
     final counts = await rebuildsDuring([CommitBar, IgnorePane], () async {
-      await changes.click(5);
-      await changes.extendSelection(3);
-      await changes.toggleFocused();
+      changes.click(5);
+      changes.extendSelection(3);
+      changes.toggleFocused();
       await tester.pump();
     });
     expect(counts[CommitBar], 0);
@@ -108,10 +108,10 @@ void main() {
     changes.rowsChanged.addListener(() => rows++);
     changes.status.addListener(() => status++);
 
-    await changes.move(1);
+    changes.move(1);
     expect((cursor, rows, status), (1, 0, 0));
 
-    await changes.setFilter('f000');
+    changes.setFilter('f000');
     expect((cursor, rows, status), (2, 1, 0));
 
     await changes.load();
