@@ -64,7 +64,7 @@ class ShellState extends State<Shell> {
   /// The repository being shown; Browse can replace it.
   late GitRepo repo = widget.repo;
   late Changes changes = widget.seeded ?? Changes(repo);
-  late RepoBrowser browser = RepoBrowser(startDirectory: repo.path);
+  late RepoBrowser browser;
   final FocusNode shellFocus = FocusNode(debugLabel: 'shell');
   final TextEditingController commitController = TextEditingController();
   final FocusNode commitFocus = FocusNode(debugLabel: 'commit message');
@@ -84,6 +84,7 @@ class ShellState extends State<Shell> {
   void initState() {
     super.initState();
     changes.addListener(onChangesChanged);
+    browser = RepoBrowser(startDirectory: repo.path, onReport: logScan);
     loadEverything();
     // The Browse list is wanted as soon as the window is up, so it scans in the
     // background rather than on the frame that shows the changes.
@@ -91,6 +92,19 @@ class ShellState extends State<Shell> {
     prefs.load().then((_) {
       if (mounted) setState(() => editorCommand = prefs.editorCommand);
     });
+  }
+
+  /// Every scan writes one console row with its cost and its worst listings, so
+  /// the skip list can be tuned from what was actually expensive.
+  void logScan(ScanReport report) {
+    console.add(
+      ActionFailure.done(
+        summary: report.summary,
+        detail: report.detail,
+        origin: 'RepoBrowser.scan',
+      ),
+      action: 'browse',
+    );
   }
 
   /// Browse: open another repository, which means new state for everything that

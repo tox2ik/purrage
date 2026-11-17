@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../state/browser.dart';
+import 'theme.dart';
 
 /// The Browse mode: the directory being browsed, the repositories found below it,
 /// a way up a level and, on Windows, a drive picker.
@@ -208,8 +209,11 @@ class _RepoRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final name = path.replaceAll(r'\', '/').split('/').last;
-    final parent = path.length > name.length ? path.substring(0, path.length - name.length - 1) : '';
+    final clean = path.replaceAll(r'\', '/');
+    final name = clean.split('/').last;
+    final parent = clean.length > name.length
+        ? clean.substring(0, clean.length - name.length - 1)
+        : '';
     return Tooltip(
       message: isCurrent ? 'Already open: $path' : 'Open $path',
       child: MouseRegion(
@@ -226,17 +230,18 @@ class _RepoRow extends StatelessWidget {
                 ),
               ),
             ),
-            padding: const EdgeInsets.fromLTRB(9, 4, 12, 4),
+            padding: const EdgeInsets.fromLTRB(9, 2, 12, 2),
+            // The same two columns as a file row: the folder right-aligned, the
+            // base name left-aligned, so names line up down the list.
             child: Row(
               children: [
-                Icon(Icons.commit, size: 13, color: scheme.onSurfaceVariant),
-                const SizedBox(width: 7),
-                Text(name, style: TextStyle(fontSize: 12.5, color: scheme.onSurface)),
-                const SizedBox(width: 8),
                 Expanded(
+                  flex: 2,
                   child: Text(
-                    parent,
+                    parent.isEmpty ? '' : '$parent/',
+                    textAlign: TextAlign.right,
                     overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                     style: TextStyle(
                       fontFamily: 'monospace',
                       fontSize: 11.5,
@@ -244,8 +249,29 @@ class _RepoRow extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (isCurrent)
-                  Text('open', style: TextStyle(fontSize: 10.5, color: scheme.primary)),
+                const SizedBox(width: 6),
+                Expanded(
+                  flex: 3,
+                  child: Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          name,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                          style: TextStyle(fontSize: 12.5, color: purrageFolder),
+                        ),
+                      ),
+                      if (isCurrent) ...[
+                        const SizedBox(width: 6),
+                        Text(
+                          'open',
+                          style: TextStyle(fontSize: 10.5, color: scheme.primary),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
               ],
             ),
           ),

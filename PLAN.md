@@ -135,6 +135,16 @@ The ignore pane becomes a list of `.gitignore` files, not one file:
   failed switch is visible there too.
 - **Up one level** moves the browse root to the parent and rescans; a **refresh** button rescans the
   same directory; the header shows the path, a spinner while scanning and the repository count.
+- Rows use the file list's two columns: the containing path right-aligned in monospace, the base name
+  left-aligned in Explorer's folder amber, so the names line up down the list.
+- Each scan writes one console row: the directory, the depth, directories visited and skipped,
+  repositories found, elapsed time, and the six slowest and six widest listings — evidence for
+  tuning the skip rules rather than guessing.
+- Whole trees are never walked on Windows: `C:/Windows`, `C:/Program Files`,
+  `C:/Program Files (x86)`, `C:/ProgramData`, `C:/$Recycle.Bin`, `C:/System Volume Information`,
+  `C:/Recovery`, `C:/PerfLogs` (matched as path prefixes), plus the name-based skip set
+  (`node_modules`, `build`, `.dart_tool`, `target`, `dist`, `obj`, `bin`, `out`, `vendor`,
+  `AppData`, caches, …).
 - On Windows a **drive picker** lists every mounted drive (`A:`…`Z:` that exists) and switches the
   browse root. On Linux this would have to detect real mount points and skip pseudo filesystems;
   out of scope for now.
