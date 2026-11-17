@@ -2,6 +2,12 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:path/path.dart' as p;
+
+import 'paths.dart';
+
+/// The host's path rules for this file's own string work.
+final p.Context _paths = hostPaths;
 
 /// One directory the walk opened, kept when it was slow or wide.
 class ScanSample {
@@ -165,14 +171,12 @@ class RepoBrowser extends ChangeNotifier {
   /// Set while a scan is running and a new one was asked for.
   bool _again = false;
 
-  static String _clean(String path) {
-    var clean = path.replaceAll(r'\', '/').replaceAll(RegExp(r'/+$'), '');
-    // Keep a drive root as `C:/`; `C:` alone means "current directory on C:".
-    if (RegExp(r'^[A-Za-z]:$').hasMatch(clean)) clean = '$clean/';
-    return clean;
-  }
+  static String _clean(String path) => canonicalPath(path);
 
   static bool _inSkippedTree(String path) {
+    // The skip trees are Windows system paths; on any other platform the walk
+    // simply has none.
+    if (!Platform.isWindows) return false;
     final lower = _clean(path).toLowerCase();
     for (final tree in skipTrees) {
       if (lower == tree || lower.startsWith('$tree/')) return true;
@@ -199,21 +203,20 @@ class RepoBrowser extends ChangeNotifier {
     if (repos.length != before) notifyListeners();
   }
 
-  /// Go one level up and scan there.
+  /// Go one level up and scan there. At a root (`C:/`, `/`) there is nowhere up.
   Future<void> up() async {
-    final slash = directory.lastIndexOf('/');
-    if (slash <= 0) return;
-    final parent = directory.substring(0, slash);
-    // From `C:/Users` the parent is the drive root, not `C:`.
-    await goTo(parent.length == 2 && parent.endsWith(':') ? '$parent/' : parent);
+    final parent = _paths.dirname(directory);
+    if (parent == directory) return;
+    await goTo(canonicalPath(parent));
   }
 
   Future<void> goTo(String path) async {
-    directory = _clean(path);
+    directory = path;
     await scan();
   }
 
-  /// The mounted drives with a root directory, on Windows.
+  /// The mounted drives with a root directory, on Windows. Linux would have to
+  /// read `/proc/self/mountinfo` and drop the pseudo filesystems; not yet.
   static Future<List<String>> drives() async {
     if (!Platform.isWindows) return const [];
     final found = <String>[];
@@ -278,9 +281,9 @@ class RepoBrowser extends ChangeNotifier {
       for (final child in children) {
         if (child is! Directory) continue;
         if (FileSystemEntity.isLinkSync(child.path)) continue;
-        final name = child.path.replaceAll(r'\', '/').split('/').last;
-        if (skip.contains(name.toLowerCase())) continue;
         final clean = _clean(child.path);
+        final name = _paths.basename(clean);
+        if (skip.contains(name.toLowerCase())) continue;
         // Never below a `.git`, whatever its casing: objects, refs and the rest
         // are nobody's checkout and are expensive to enumerate.
         if (_belowGitDir(clean)) {
@@ -339,12 +342,12 @@ class RepoBrowser extends ChangeNotifier {
   /// A `.git` of its own: a folder for a clone, a file for a worktree or a
   /// submodule. One `type` call, no listing.
   static Future<bool> _hasGit(String path) async {
-    final kind = await FileSystemEntity.type('$path/.git');
+    final kind = await FileSystemEntity.type(_paths.join(path, '.git'));
     return kind != FileSystemEntityType.notFound;
   }
 
   /// The list's two columns decide the order: the containing path first, then the
-  /// base name, both case-insensitive — the order a reader scans the screen.
+  /// base name, both case-insensitive - the order a reader scans the screen.
   static int _byColumns(String a, String b) {
     final left = _split(a);
     final right = _split(b);
@@ -353,10 +356,10 @@ class RepoBrowser extends ChangeNotifier {
     return left.$2.toLowerCase().compareTo(right.$2.toLowerCase());
   }
 
+  /// The containing path and the base name, split by the host's own rules.
   static (String, String) _split(String path) {
     final clean = _clean(path);
-    final slash = clean.lastIndexOf('/');
-    return slash < 0 ? ('', clean) : (clean.substring(0, slash), clean.substring(slash + 1));
+    return (_paths.dirname(clean), _paths.basename(clean));
   }
 }
 

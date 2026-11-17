@@ -490,8 +490,25 @@ class ShellState extends State<Shell> {
   /// Re-read everything an action can change: the status list, the ignore files
   /// and the highlight. The r key, F5 and Ctrl+R call this.
   Future<void> reloadAll() async {
+    final clock = Stopwatch()..start();
     await changes.load();
     await reloadIgnorePane();
+    clock.stop();
+    console.add(
+      ActionFailure.done(
+        summary: 're-read ${repo.path}  ${clock.elapsedMilliseconds} ms  '
+            '${changes.visible.length} row(s), ${ignorePane.files.length} ignore file(s)',
+        detail: [
+          'origin: Shell.reloadAll -> Changes.load -> Repo.status',
+          'cwd: ${repo.path}',
+          'rows: ${changes.visible.length}',
+          'ignore files: ${ignorePane.files.map((file) => file.path).join(', ')}',
+          'elapsed: ${clock.elapsedMilliseconds} ms',
+        ].join('\n'),
+        origin: 'Shell.reloadAll',
+      ),
+      action: 'reload',
+    );
   }
 
   /// The ignore files alone: after an ignore action they are what changed.

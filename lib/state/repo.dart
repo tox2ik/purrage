@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:git/git.dart';
 
 import 'git_repo.dart';
+import 'paths.dart';
 import 'status.dart';
 
 /// The one door to git. Everything shelling out happens here.
@@ -126,6 +127,12 @@ class Repo implements GitRepo {
 
   /// Paths inside the repository, for the `.gitignore` list.
   @override
+  /// Every `.gitignore` in the working tree, repo-relative.
+  ///
+  /// `ls-files --cached` keeps listing a tracked file after it is deleted from
+  /// disk, and `--others` only sees untracked ones: the list is therefore filtered
+  /// against the filesystem, or the pane would show a file the user just removed.
+  @override
   Future<List<String>> gitignoreFiles() async {
     final result = await _git([
       'ls-files',
@@ -135,11 +142,14 @@ class Repo implements GitRepo {
       '--',
       ':(glob)**/.gitignore',
     ]);
-    final found = (result.stdout as String)
+    final listed = (result.stdout as String)
         .split('\n')
         .map((line) => line.trim())
-        .where((line) => line.isNotEmpty)
-        .toList();
+        .where((line) => line.isNotEmpty);
+    final found = <String>[];
+    for (final path in listed) {
+      if (await File(pathIn(this.path, path)).exists()) found.add(path);
+    }
     return found;
   }
 
@@ -219,10 +229,12 @@ class Repo implements GitRepo {
   /// embedded repo, a gitlink or a submodule. One stat per row that can be one.
   @override
   Future<bool> isNestedRepository(String path) async {
-    final clean = path.endsWith('/') ? path.substring(0, path.length - 1) : path;
+    final clean = path.endsWith('/')
+        ? path.substring(0, path.length - 1)
+        : path;
     if (clean.isEmpty) return false;
-    final root = this.path.replaceAll(r'\', '/').replaceAll(RegExp(r'/+$'), '');
-    final kind = await FileSystemEntity.type('$root/$clean/.git');
+    final gitDir = hostPaths.join(canonicalPath(path), '.git');
+    final kind = await FileSystemEntity.type(gitDir);
     return kind != FileSystemEntityType.notFound;
   }
 

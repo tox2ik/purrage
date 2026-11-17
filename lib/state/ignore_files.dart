@@ -9,6 +9,7 @@ library;
 import 'package:flutter/foundation.dart';
 
 import 'git_repo.dart';
+import 'paths.dart';
 
 /// One discovered ignore file, with its lines already split.
 class IgnoreFile {
@@ -150,11 +151,11 @@ class IgnorePaneState extends ChangeNotifier {
   /// A path as git prints it, made repo-relative and forward-slashed. Null when
   /// it is absolute and outside the repository.
   String? _relative(String path) {
-    var clean = path.replaceAll(r'\', '/');
-    final root = repo.path.replaceAll(r'\', '/').replaceAll(RegExp(r'/+$'), '');
+    var clean = canonicalPath(path);
+    final root = canonicalPath(repo.path);
     if (clean.toLowerCase().startsWith('${root.toLowerCase()}/')) {
       clean = clean.substring(root.length + 1);
-    } else if (RegExp(r'^[A-Za-z]:/').hasMatch(clean) || clean.startsWith('/')) {
+    } else if (clean.startsWith('/') || RegExp(r'^[A-Za-z]:/').hasMatch(clean)) {
       return null;
     }
     while (clean.startsWith('./')) {
@@ -163,7 +164,7 @@ class IgnorePaneState extends ChangeNotifier {
     return clean;
   }
 
-  String _absolute(String path) => '${repo.path.replaceAll(r'\', '/').replaceAll(RegExp(r'/+$'), '')}/$path';
+  String _absolute(String path) => pathIn(repo.path, path);
 
   static String _message(Object error) => error is GitException ? error.message : error.toString();
 }
