@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
+import '../timing/ui_timing.dart';
 import 'failure.dart';
 import 'git_repo.dart';
 import 'ignore_rules.dart';
@@ -172,7 +173,9 @@ class Changes extends ChangeNotifier {
   ///
   /// The nested-repository probe runs after the list is on screen and is not
   /// awaited: the rows must not wait on a hundred stats. [idle] waits for it.
-  Future<void> load() async {
+  Future<void> load() => UiTiming.instance.time('changes.load', _load);
+
+  Future<void> _load() async {
     _busy = true;
     notifyListeners();
     final keepPath = selected?.path;
@@ -239,16 +242,23 @@ class Changes extends ChangeNotifier {
   }
 
   /// Move the cursor by [delta] rows; a plain move makes that row the selection.
+  ///
+  /// Timed as `changes.move` (the state and the listeners) and
+  /// `changes.move/frame` (until the next frame is on screen).
   Future<void> move(int delta) async {
     if (_visible.isEmpty) return;
     final next = (_index + delta).clamp(0, _visible.length - 1);
     if (next == _index) return;
+    final span = UiTiming.instance.span('changes.move');
     _index = next;
     _selection
       ..clear()
       ..add(_key(_visible[next]));
     _anchor = next;
     notifyListeners();
+    span
+      ..markPainted()
+      ..end();
   }
 
   /// Shift+Up / Shift+Down: move the cursor one row and take the range from the
@@ -342,7 +352,28 @@ class Changes extends ChangeNotifier {
   /// move is undone (other actions' rows stay as they are) and the result says
   /// why. That is the whole point of the app feeling instant: the click does
   /// not wait on a subprocess.
-  Future<ActionResult> trackSelected() async {
+  Future<ActionResult> trackSelected() => _timed('changes.track', _track);
+
+  /// Time one action as [name], from the key to git's confirmation, with its
+  /// phases: `optimistic` (the rows moved), `frame` (that is on screen), `git`
+  /// (git answered), and the whole.
+  Future<ActionResult> _timed(String name, Future<ActionResult> Function(Span span) action) async {
+    final span = UiTiming.instance.span(name);
+    try {
+      return await action(span);
+    } finally {
+      span.end();
+    }
+  }
+
+  /// The optimistic list is in place: mark it, and the frame that shows it.
+  static void _shown(Span span) {
+    span
+      ..mark('optimistic')
+      ..markPainted();
+  }
+
+  Future<ActionResult> _track(Span span) async {
     const origin = 'Changes.trackSelected -> Repo.track -> git add';
     final rows = actionRows;
     if (rows.isEmpty) return ActionResult.refused('track', 'nothing selected', origin);
@@ -363,6 +394,7 @@ class Changes extends ChangeNotifier {
       ],
     );
     _apply(change);
+    _shown(span);
 
     final pathList = usable.map((row) => row.path).toList();
     final command = 'git add -- ${pathList.take(8).join(' ')}'
@@ -370,6 +402,7 @@ class Changes extends ChangeNotifier {
     return _enqueue(() async {
       try {
         await repo.track(pathList);
+        span.mark('git');
       } on Exception catch (error) {
         _undo(change);
         return ActionResult.failed(
@@ -389,7 +422,9 @@ class Changes extends ChangeNotifier {
   }
 
   /// Stop tracking the highlighted rows, at once, then let git confirm.
-  Future<ActionResult> untrackSelected() async {
+  Future<ActionResult> untrackSelected() => _timed('changes.untrack', _untrack);
+
+  Future<ActionResult> _untrack(Span span) async {
     const origin = 'Changes.untrackSelected -> Repo.untrack -> git rm --cached';
     final rows = actionRows
         .where((row) => !row.isConflict && row.section != Section.untracked)
@@ -399,6 +434,7 @@ class Changes extends ChangeNotifier {
     final paths = rows.map((row) => row.path).toSet();
     final change = _RowChange(removed: [for (final row in _rows) if (paths.contains(row.path)) row]);
     _apply(change);
+    _shown(span);
 
     final planned = 'git rm --cached -- ${rows.take(8).map((row) => row.path).join(' ')}';
     return _enqueue(() async {
@@ -406,6 +442,7 @@ class Changes extends ChangeNotifier {
         for (final row in rows) {
           await repo.untrack(row.path);
         }
+        span.mark('git');
       } on Exception catch (error) {
         _undo(change);
         return ActionResult.failed(
@@ -428,7 +465,10 @@ class Changes extends ChangeNotifier {
   }
 
   /// Commit the index with one summary line, after every queued action.
-  Future<ActionResult> commit(String summary) async {
+  Future<ActionResult> commit(String summary) =>
+      _timed('changes.commit', (span) => _commit(span, summary));
+
+  Future<ActionResult> _commit(Span span, String summary) async {
     const origin = 'Changes.commit -> Repo.commit -> git commit';
     final message = summary.trim();
     if (message.isEmpty) return ActionResult.refused('commit', 'the summary is empty', origin);
@@ -440,6 +480,7 @@ class Changes extends ChangeNotifier {
     return _enqueue(() async {
       try {
         await repo.commit(message);
+        span.mark('git');
       } on Exception catch (error) {
         _error = error is GitException ? error.message : error.toString();
         return ActionResult.failed(
@@ -549,6 +590,17 @@ class Changes extends ChangeNotifier {
     required IgnoreScope scope,
     required IgnoreTarget target,
     bool stopTracking = false,
+  }) =>
+      _timed(
+        'changes.ignore',
+        (span) => _ignore(span, scope: scope, target: target, stopTracking: stopTracking),
+      );
+
+  Future<ActionResult> _ignore(
+    Span span, {
+    required IgnoreScope scope,
+    required IgnoreTarget target,
+    required bool stopTracking,
   }) async {
     const origin = 'Changes.ignoreSelected -> IgnoreRules.pattern -> Repo.appendIgnoreLine';
     final rows = actionRows;
@@ -574,6 +626,7 @@ class Changes extends ChangeNotifier {
       }
       plans.add(_IgnorePlan(row: row, target: rowTarget, pattern: pattern));
     }
+    span.mark('check');
 
     Map<String, Object?> params(int written) => {
           'scope': scope.name,
@@ -601,6 +654,7 @@ class Changes extends ChangeNotifier {
     // They leave the list now; git gets the files written right after.
     final paths = plans.map((plan) => plan.row.path).toSet();
     _apply(_RowChange(removed: [for (final row in _rows) if (paths.contains(row.path)) row]));
+    _shown(span);
 
     final command = plans
             .map((plan) => '${_shortSource(plan.target.path)} += ${plan.pattern}')
@@ -619,6 +673,7 @@ class Changes extends ChangeNotifier {
         // This row's rule was not written: it comes back, and only it.
         _undo(_RowChange(removed: [plan.row]));
       }
+      span.mark('git');
       await _settle();
       if (skipped.isEmpty) {
         return ActionResult.done('ignore', origin: origin, command: command, changed: added);
@@ -668,7 +723,9 @@ class Changes extends ChangeNotifier {
 
   /// Ask git for the truth after an optimistic change, without the busy state
   /// that makes the UI feel stuck. Nothing is redrawn when nothing moved.
-  Future<void> refresh() async {
+  Future<void> refresh() => UiTiming.instance.time('changes.refresh', _refresh);
+
+  Future<void> _refresh() async {
     try {
       final rows = await repo.status();
       final sorted = [...rows]..sort(_compare);

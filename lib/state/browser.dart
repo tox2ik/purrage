@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
+import '../timing/ui_timing.dart';
 import 'paths.dart';
 import 'system.dart';
 
@@ -305,7 +306,7 @@ class RepoBrowser extends ChangeNotifier {
       _again = true;
       return running;
     }
-    return _running = _scan(empty: empty);
+    return _running = UiTiming.instance.time('browse.scan', () => _scan(empty: empty));
   }
 
   /// Completes when no scan is running any more.

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui' show AppExitResponse;
 
 import 'package:flutter/foundation.dart';
 
@@ -9,6 +10,7 @@ import 'state/diagnostics.dart';
 import 'state/failure.dart';
 import 'state/repo.dart';
 import 'state/workspace.dart';
+import 'timing/ui_timing.dart';
 import 'ui/shell.dart';
 import 'ui/theme.dart';
 
@@ -40,6 +42,8 @@ void main(List<String> args) {
   );
 
   Diagnostics.guard(() {
+    WidgetsFlutterBinding.ensureInitialized();
+    UiTiming.instance.start();
     runApp(PurrageApp(directory: target, console: console));
   });
 }
@@ -61,6 +65,25 @@ class _PurrageAppState extends State<PurrageApp> {
   late final Future<Workspace> workspace = Repo.open(widget.directory).then(
     (repo) => Workspace(repo: repo, opener: Repo.open, console: widget.console),
   );
+  late final AppLifecycleListener lifecycle;
+
+  @override
+  void initState() {
+    super.initState();
+    lifecycle = AppLifecycleListener(onExitRequested: onExit);
+  }
+
+  @override
+  void dispose() {
+    lifecycle.dispose();
+    super.dispose();
+  }
+
+  /// Closing the window: write this session's timings, then quit.
+  Future<AppExitResponse> onExit() async {
+    await UiTiming.instance.save(closing: true);
+    return AppExitResponse.exit;
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -8,6 +8,7 @@ library;
 
 import 'package:flutter/foundation.dart';
 
+import '../timing/ui_timing.dart';
 import 'git_repo.dart';
 import 'paths.dart';
 
@@ -72,7 +73,9 @@ class IgnorePaneState extends ChangeNotifier {
   }
 
   /// Read every discovered ignore file, keeping the root first.
-  Future<void> load() async {
+  Future<void> load() => UiTiming.instance.time('ignorePane.load', _load);
+
+  Future<void> _load() async {
     try {
       final discovered = await repo.gitignoreFiles();
       final paths = <String>{};
@@ -101,7 +104,7 @@ class IgnorePaneState extends ChangeNotifier {
   /// The shell starts this from a timer without awaiting it, so the probe is
   /// kept and [idle] can wait for it.
   Future<void> focusPath(String repoRelativePath) {
-    final probe = _focusPath(repoRelativePath);
+    final probe = UiTiming.instance.time('ignorePane.focus', () => _focusPath(repoRelativePath));
     _probes.add(probe);
     return probe.whenComplete(() => _probes.remove(probe));
   }

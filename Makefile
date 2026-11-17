@@ -1,7 +1,10 @@
 SHELL := pwsh.exe
 .SHELLFLAGS := -NoProfile -NoLogo -Command
 .DEFAULT_GOAL := help
-.PHONY: run live build test analyze format where help
+.PHONY: run live build test analyze format timings measure where help
+
+WHICH ?= last
+FILTER ?=
 
 # --- the Flutter SDK -------------------------------------------------------
 # Neovim and other tools start make with a PATH that may not have Flutter on it,
@@ -48,6 +51,12 @@ analyze: ## static analysis
 
 format: ## format lib and test
 	& "$(DART)" format lib test
+
+timings: ## ms per action the app recorded (WHICH=last|totals|<n back>, FILTER=changes)
+	@pwsh -NoProfile -File tool/timings.ps1 -Which '$(WHICH)' -Filter '$(FILTER)'
+
+measure: ## time move, track and ignore over 2,000 rows, no git
+	& "$(FLUTTER)" test test/timing_measure_test.dart --timeout 60s
 
 ##@ other
 
