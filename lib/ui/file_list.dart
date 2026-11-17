@@ -238,10 +238,6 @@ class RowTile extends StatelessWidget {
                 _Badge(text: _badge, color: chosen ? scheme.primary : scheme.onSurfaceVariant),
                 const SizedBox(width: 7),
                 Expanded(child: _name(style, scheme, chosen)),
-                if (nested) ...[
-                  const SizedBox(width: 6),
-                  const _RepoBadge(),
-                ],
               ],
             ),
           ),
@@ -275,11 +271,23 @@ class RowTile extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             flex: 3,
-            child: Text(
-              row.name,
-              overflow: TextOverflow.ellipsis,
-              maxLines: 1,
-              style: chosen ? style?.copyWith(fontWeight: FontWeight.w600) : style,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    row.name,
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                    style: chosen ? style?.copyWith(fontWeight: FontWeight.w600) : style,
+                  ),
+                ),
+                // The marker belongs to the base name, not to a column of its own.
+                if (nested) ...[
+                  const SizedBox(width: 5),
+                  const _RepoBadge(),
+                ],
+              ],
             ),
           ),
         ],

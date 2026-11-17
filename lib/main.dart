@@ -1,9 +1,12 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
+
 import 'package:flutter/material.dart';
 
 import 'state/console.dart';
 import 'state/diagnostics.dart';
+import 'state/failure.dart';
 import 'state/repo.dart';
 import 'ui/shell.dart';
 import 'ui/theme.dart';
@@ -17,6 +20,23 @@ void main(List<String> args) {
   final console = ConsoleLog();
   Diagnostics.install(console);
   Diagnostics.enter('startup: opening $target');
+
+  // The first console row names the launch, so "which build am I looking at" has
+  // an answer without reading process start times.
+  final started = DateTime.now();
+  console.add(
+    ActionFailure.done(
+      summary: 'Purrage started ${started.toIso8601String().substring(11, 19)} '
+          '(${kReleaseMode ? 'release' : 'debug'})',
+      detail: [
+        'started: ${started.toIso8601String()}',
+        'build: ${kReleaseMode ? 'release' : 'debug'}',
+        'pid: $pid',
+        'directory: $target',
+      ].join('\n'),
+    ),
+    action: 'startup',
+  );
 
   Diagnostics.guard(() {
     runApp(PurrageApp(directory: target, console: console));
