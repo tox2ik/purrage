@@ -84,8 +84,10 @@ class Repo implements GitRepo {
     } on GitException catch (error) {
       // A submodule or a nested repository: its staged content matches neither
       // HEAD nor the working tree, so git insists on -f. With --cached that only
-      // drops the index entry; the file or folder stays on disk.
-      if (!error.message.contains('use -f to force removal')) rethrow;
+      // drops the index entry; the file or folder stays on disk. Git's wording is
+      // "use -f to force removal", sometimes with the force hint on its own line.
+      final text = '${error.message} ${error.detail ?? ''}'.toLowerCase();
+      if (!text.contains('use -f') && !text.contains('force removal')) rethrow;
       await _git(['rm', '--cached', '-f', '--', path]);
     }
   }
