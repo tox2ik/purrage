@@ -1,5 +1,5 @@
 name: purrage
-description: "git status as a list: track or ignore each file, then commit. Windows desktop."
+description: "git status as a list: track or ignore each file, then commit."
 publish_to: 'none'
 
 version: 1.0.0+1
