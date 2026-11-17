@@ -43,6 +43,9 @@ and the code disagree, fix one of them deliberately.
 - Parsing rules: `XY path` per record; `-z` means rename pairs arrive as two NUL-separated
   paths (new, then old); codes are `M A D R C T U` per column; the conflict codes
   `DD AU UD UA DU AA UU` go to Conflicts with a readable label.
+- A row whose folder holds a `.git` of its own — an embedded repository, a gitlink, a submodule —
+  carries a tiny **git** chip. Its ignore rules belong to that inner repository, not to this
+  `.gitignore`. The check is one stat per distinct path, remembered for the session.
 - Untracked **directories** are listed as a single row when git reports them that way
   (`--untracked-files=all` avoids most of it); a row that is a directory shows a trailing `/`.
 - Refreshes: **only after an action** (`track`, `untrack`, `ignore`, `commit`) and on `r`. There is
