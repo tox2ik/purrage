@@ -432,16 +432,9 @@ class _RepoBadge extends StatelessWidget {
           border: Border.all(color: scheme.outline),
           borderRadius: BorderRadius.circular(3),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.account_tree_outlined, size: 10, color: scheme.onSurfaceVariant),
-            const SizedBox(width: 3),
-            Text(
-              'git',
-              style: TextStyle(fontSize: 9.5, color: scheme.onSurfaceVariant),
-            ),
-          ],
+        child: Text(
+          'git',
+          style: TextStyle(fontSize: 9.5, color: scheme.onSurfaceVariant),
         ),
       ),
     );
