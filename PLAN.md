@@ -128,8 +128,11 @@ The ignore pane becomes a list of `.gitignore` files, not one file:
   is the **working directory**, never `.git`; a found repository is not descended into, links are
   never followed, and `node_modules`, `build`, `.dart_tool`, `target`, `dist`, `.venv`, `.gradle`,
   `.idea`, `.vscode` and `.cache` are skipped so a home folder stays walkable.
-- Clicking an entry opens that repository: a fresh `Repo`, `Changes` and ignore pane, then the
-  Changes mode, so add/ignore work on the directory just picked.
+- Clicking an entry opens that repository — a fresh `Repo`, `Changes` and ignore pane — and the row
+  stays marked (tinted, accent bar, `open`): the app stays in Browse, because jumping to Changes made
+  the switch look like nothing had happened; `Alt+1` shows the new checkout. Every click writes an
+  `opening …` row to the console, and `opened …` with the row count once the checkout is loaded, so a
+  failed switch is visible there too.
 - **Up one level** moves the browse root to the parent and rescans; a **refresh** button rescans the
   same directory; the header shows the path, a spinner while scanning and the repository count.
 - On Windows a **drive picker** lists every mounted drive (`A:`…`Z:` that exists) and switches the

@@ -101,6 +101,14 @@ class ShellState extends State<Shell> {
       return;
     }
     Diagnostics.enter('Browse: open $path');
+    console.add(
+      ActionFailure.done(
+        summary: 'opening $path',
+        detail: 'origin: Shell.openRepository\nclicked in the Browse list',
+        origin: 'Shell.openRepository',
+      ),
+      action: 'browse',
+    );
     try {
       final opened = await Repo.open(path);
       final next = Changes(opened);
@@ -114,7 +122,8 @@ class ShellState extends State<Shell> {
         repo = opened;
         changes = next;
         ignorePane = pane;
-        mode = Mode.changes;
+        // Stay in Browse: the click marks the new checkout, and Changes is one
+        // key away. Jumping modes on a click made the switch look like nothing.
       });
       changes.addListener(onChangesChanged);
       await loadEverything();
@@ -123,7 +132,8 @@ class ShellState extends State<Shell> {
       console.add(
         ActionFailure.done(
           summary: 'opened ${opened.path}',
-          detail: 'origin: Shell.openRepository -> Repo.open\ncwd: ${opened.path}',
+          detail: 'origin: Shell.openRepository -> Repo.open\ncwd: ${opened.path}'
+              '\nrows: ${changes.visible.length}',
           origin: 'Shell.openRepository',
         ),
         action: 'browse',

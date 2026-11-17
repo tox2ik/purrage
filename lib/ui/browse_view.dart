@@ -218,6 +218,7 @@ class _RepoRow extends StatelessWidget {
           onTap: onTap,
           child: Container(
             decoration: BoxDecoration(
+              color: isCurrent ? scheme.primaryContainer.withValues(alpha: 0.45) : null,
               border: Border(
                 left: BorderSide(
                   width: 3,
