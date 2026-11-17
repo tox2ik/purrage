@@ -25,6 +25,7 @@ class ScanReport {
     required this.slowest,
     required this.widest,
     required this.stopped,
+    this.appDataTrees = 0,
   });
 
   final String directory;
@@ -36,6 +37,9 @@ class ScanReport {
   final List<ScanSample> slowest;
   final List<ScanSample> widest;
   final bool stopped;
+
+  /// `AppData` folders met; each is walked only [RepoBrowser.appDataDepth] deep.
+  final int appDataTrees;
 
   String get summary =>
       'scanned $directory  ${_ms(elapsed)}  depth $depth  '
@@ -52,6 +56,8 @@ class ScanReport {
       'directories skipped by rule: $skipped',
       'repositories found: $found',
       'elapsed: ${_ms(elapsed)}',
+      if (appDataTrees > 0)
+        'AppData folders met: $appDataTrees (each walked ${RepoBrowser.appDataDepth} levels in)',
     ];
     if (slowest.isNotEmpty) {
       lines.add('slowest listings:');
@@ -117,7 +123,6 @@ class RepoBrowser extends ChangeNotifier {
     '.terraform',
     'vendor',
     'Pods',
-    'AppData',
     '__pycache__',
     '.npm',
     '.pnpm-store',
@@ -125,6 +130,11 @@ class RepoBrowser extends ChangeNotifier {
     '.rustup',
     '.cargo',
   };
+
+  /// How far below an `AppData` folder the walk may go. It is not skipped — a
+  /// stray checkout can live there — but three levels of caches per application
+  /// are not worth the enumeration.
+  static const appDataDepth = 2;
 
   /// Whole trees never worth walking on Windows: no checkout lives there, and the
   /// enumeration cost is enormous. Matched as path prefixes, case-insensitively.
@@ -218,9 +228,10 @@ class RepoBrowser extends ChangeNotifier {
     final samples = <ScanSample>[];
     var visited = 0;
     var skipped = 0;
+    var appDataTrees = 0;
     var stopped = false;
 
-    final queue = <_Node>[_Node(directory, 0)];
+    final queue = <_Node>[_Node(directory, 0, maxDepth)];
     while (queue.isNotEmpty) {
       final node = queue.removeAt(0);
       if (++visited > maxDirectories) {
@@ -234,7 +245,7 @@ class RepoBrowser extends ChangeNotifier {
         found.add(node.path);
         continue;
       }
-      if (node.depth >= maxDepth) continue;
+      if (node.depth >= node.limit) continue;
 
       final listing = Stopwatch()..start();
       List<FileSystemEntity> children;
@@ -256,7 +267,15 @@ class RepoBrowser extends ChangeNotifier {
           skipped++;
           continue;
         }
-        queue.add(_Node(clean, node.depth + 1));
+        final childDepth = node.depth + 1;
+        // AppData is walked, but only two levels in: the per-application cache
+        // trees below that are the expensive part and hold no checkouts.
+        final isAppData = name.toLowerCase() == 'appdata';
+        if (isAppData) appDataTrees++;
+        final childLimit = isAppData
+            ? (childDepth + appDataDepth < node.limit ? childDepth + appDataDepth : node.limit)
+            : node.limit;
+        queue.add(_Node(clean, childDepth, childLimit));
       }
       // Let the UI breathe every few directories: on Windows a listing can block
       // the event loop for a moment.
@@ -283,6 +302,7 @@ class RepoBrowser extends ChangeNotifier {
       slowest: slowest.take(6).toList(),
       widest: widest.take(6).toList(),
       stopped: stopped,
+      appDataTrees: appDataTrees,
     ));
 
     if (_again) {
@@ -300,8 +320,12 @@ class RepoBrowser extends ChangeNotifier {
 }
 
 class _Node {
-  const _Node(this.path, this.depth);
+  const _Node(this.path, this.depth, this.limit);
 
   final String path;
   final int depth;
+
+  /// How deep the walk may go on this branch: [RepoBrowser.maxDepth] normally,
+  /// lower inside an `AppData` tree.
+  final int limit;
 }

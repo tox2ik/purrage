@@ -143,8 +143,11 @@ The ignore pane becomes a list of `.gitignore` files, not one file:
 - Whole trees are never walked on Windows: `C:/Windows`, `C:/Program Files`,
   `C:/Program Files (x86)`, `C:/ProgramData`, `C:/$Recycle.Bin`, `C:/System Volume Information`,
   `C:/Recovery`, `C:/PerfLogs` (matched as path prefixes), plus the name-based skip set
-  (`node_modules`, `build`, `.dart_tool`, `target`, `dist`, `obj`, `bin`, `out`, `vendor`,
-  `AppData`, caches, …).
+  (`node_modules`, `build`, `.dart_tool`, `target`, `dist`, `obj`, `bin`, `out`, `vendor`, caches,
+  …).
+- `AppData` is **not** skipped: it is entered and walked only **two levels in**
+  (`AppData/Local/<one more>`), since a stray checkout can live there but the per-application cache
+  trees below hold none. The scan report counts how many `AppData` folders it met.
 - On Windows a **drive picker** lists every mounted drive (`A:`…`Z:` that exists) and switches the
   browse root. On Linux this would have to detect real mount points and skip pseudo filesystems;
   out of scope for now.
