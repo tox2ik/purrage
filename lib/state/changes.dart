@@ -463,7 +463,26 @@ class Changes extends ChangeNotifier {
     }
 
     if (plans.isEmpty) {
-      return skipped.isEmpty ? 'nothing selected' : skipped.take(3).join('; ');
+      if (skipped.isEmpty) {
+        lastFailure = null;
+        return 'nothing selected';
+      }
+      // Every row was refused: keep the reason, the origin and the parameters so
+      // the console says where this came from instead of "Shell.say".
+      final summary = skipped.take(3).join('; ');
+      lastFailure = ActionFailure.fromSkips(
+        origin: 'Changes.ignoreSelected -> Repo.checkIgnore',
+        summary: summary,
+        skipped: skipped,
+        params: {
+          'scope': scope.name,
+          'target': _shortSource(target.path),
+          'stopTracking': stopTracking,
+          'rows': rows.length,
+          'written': 0,
+        },
+      );
+      return summary;
     }
 
     // They leave the list now; git gets the files written right after.

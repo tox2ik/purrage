@@ -102,10 +102,16 @@ class Repo implements GitRepo {
 
 
   /// The rule that ignores [path], if any: `null` when nothing matches.
+  ///
+  /// The path is passed without a trailing slash on purpose: `git check-ignore`
+  /// on a directory written as `dir/` answers with an empty pattern and the last
+  /// line it scanned, i.e. claims a match that does not exist. `dir` answers
+  /// honestly, which is what the row's path is anyway.
   @override
   Future<IgnoreMatch?> checkIgnore(String path) async {
+    final clean = path.endsWith('/') ? path.substring(0, path.length - 1) : path;
     final result = await _git(
-      ['check-ignore', '-v', '--', path],
+      ['check-ignore', '-v', '--', clean],
       throwOnError: false,
     );
     if (result.exitCode != 0) return null;

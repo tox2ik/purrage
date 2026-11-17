@@ -48,10 +48,15 @@ class IgnoreMatch {
     // right: the last `:<digits>:` before the pattern is the separator.
     final match = RegExp(r'^(.*):(\d+):(.*)$').firstMatch(head);
     if (match == null) return null;
+    final pattern = match[3]!;
+    // git answers a nested repository directory with an empty pattern (the line
+    // number is the last pattern line it read). An empty pattern is not a rule:
+    // nothing is ignored by it, whatever the exit code says.
+    if (pattern.trim().isEmpty) return null;
     return IgnoreMatch(
       source: match[1]!,
       line: int.tryParse(match[2]!) ?? 0,
-      pattern: match[3]!,
+      pattern: pattern,
       path: path,
     );
   }
